@@ -5,6 +5,7 @@ go:
 
 services:
   - rabbitmq
+  - mariadb
 
 sudo: required
 

@@ -48,7 +48,7 @@
     "serialPrefix": 255,
     "profile": "ee",
     "dbDriver": "mysql",
-    "dbConnect": "boulder@tcp(localhost:3306)/boulder?parseTime=true",
+    "dbConnect": "boulder@tcp(localhost:3306)/boulder_test?parseTime=true",
     "debugAddr": "localhost:8001",
     "testMode": true,
     "_comment": "This should only be present in testMode. In prod use an HSM.",
@@ -119,7 +119,7 @@
 
   "sa": {
     "dbDriver": "mysql",
-    "dbConnect": "boulder@tcp(localhost:3306)/boulder?parseTime=true",
+    "dbConnect": "boulder@tcp(localhost:3306)/boulder_test?parseTime=true",
     "debugAddr": "localhost:8003"
   },
 
@@ -135,12 +135,12 @@
 
   "revoker": {
     "dbDriver": "mysql",
-    "dbConnect": "boulder@tcp(localhost:3306)/boulder?parseTime=true"
+    "dbConnect": "boulder@tcp(localhost:3306)/boulder_test?parseTime=true"
   },
 
   "ocspResponder": {
     "dbDriver": "mysql",
-    "dbConnect": "boulder@tcp(localhost:3306)/boulder?parseTime=true",
+    "dbConnect": "boulder@tcp(localhost:3306)/boulder_test?parseTime=true",
     "path": "/",
     "listenAddress": "localhost:4002",
     "debugAddr": "localhost:8005"
@@ -148,7 +148,7 @@
 
   "ocspUpdater": {
     "dbDriver": "mysql",
-    "dbConnect": "boulder@tcp(localhost:3306)/boulder?parseTime=true",
+    "dbConnect": "boulder@tcp(localhost:3306)/boulder_test?parseTime=true",
     "minTimeToExpiry": "72h",
     "debugAddr": "localhost:8006"
   },

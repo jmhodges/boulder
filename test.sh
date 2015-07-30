@@ -1,9 +1,12 @@
 #!/bin/bash
+
 # Run all tests and coverage checks. Called from Travis automatically, also
 # suitable to run manually. See list of prerequisite packages in .travis.yml
 if type realpath >/dev/null 2>&1 ; then
   cd $(realpath $(dirname $0))
 fi
+
+# FIXME resolve macports vs brew: augeas dep
 
 FAILURE=0
 
@@ -32,6 +35,11 @@ if [ "x${TRAVIS_PULL_REQUEST}" != "x" ] ; then
 fi
 
 GITHUB_SECRET_FILE="$(pwd)/test/github-secret.json"
+
+uname_os=`uname`
+if [[ "${uname_os}" == "Darwin" ]]; then
+  IS_DARWIN="1"
+fi
 
 start_context() {
   CONTEXT="$1"
@@ -92,14 +100,28 @@ function die() {
 }
 
 function build_letsencrypt() {
+  old_ARCHFLAGS=$ARCHFLAGS
+  old_LDFLAGS=$LDFLAGS
+  old_CFLAGS=$CFLAGS
+
   # Test for python 2 installs with the usual names.
   if hash python2 2>/dev/null; then
     PY=python2
   elif hash python2.7 2>/dev/null; then
     PY=python2.7
+    # If we're running on OS X and on MacPorts (the python2.7 check
+    # above), we have to hack up ARCHFLAGS, LDFLAGS and CFLAGS in
+    # order to get some of the python dependencies built
+    # correctly. Specifically, the python cryptography library.
+    if [ "${IS_DARWIN}" == "1" ]; then
+      export ARCHFLAGS="-arch x86_64"
+      export LDFLAGS="-L/opt/local/lib ${LDFLAGS}"
+      export CFLAGS="-I/opt/local/include ${CFLAGS}"
+    fi
   else
     die "unable to find a python2 or python2.7 binary in \$PATH"
   fi
+
 
   echo "------------------------------------------------"
   echo "--- Checking out letsencrypt client is slow. ---"
@@ -107,15 +129,63 @@ function build_letsencrypt() {
   echo "--- client repo with initialized virtualenv  ---"
   echo "------------------------------------------------"
   run git clone \
-    https://www.github.com/letsencrypt/lets-encrypt-preview.git \
+    https://www.github.com/letsencrypt/letsencrypt.git \
     $LETSENCRYPT_PATH || exit 1
-
   cd $LETSENCRYPT_PATH
 
-  run virtualenv --no-site-packages -p $PY ./venv && \
-    ./venv/bin/pip install -r requirements.txt -e acme -e . -e letsencrypt-apache -e letsencrypt-nginx || exit 1
+  run virtualenv --no-site-packages -p $PY ./venv
+  run ./venv/bin/pip install -r requirements.txt -e acme -e . -e letsencrypt-apache -e letsencrypt-nginx
+
+  export ARCHFLAGS=$old_ARCHFLAGS
+  export CFLAGS=$old_CFLAGS
+  export LDFLAGS=$old_LDFLAGS
 
   cd -
+}
+
+check_gofmt() {
+  unformatted=$(find . -name "*.go" -not -path "./Godeps/*" -print | xargs -n1 gofmt -l)
+  if [ "x${unformatted}" == "x" ] ; then
+    return 0
+  else
+    V="Unformatted files found.
+    Please run 'go fmt' on each of these files and amend your commit to continue."
+
+    for f in ${unformatted}; do
+      V=$(printf "%s\n - %s" "${V}" "${f}")
+    done
+
+    # Print to stdout
+    printf "%s\n\n" "${V}"
+    [ "${TRAVIS}" == "true" ] || exit 1 # Stop here if running locally
+    return 1
+  fi
+}
+
+function run_build_analysis_tools() {
+  #
+  # Run Go Vet, a correctness-focused static analysis tool
+  #
+
+  start_context "test/vet"
+  run_and_comment go vet ./...
+  end_context #test/vet
+
+  #
+  # Run Go Lint, a style-focused static analysis tool
+  #
+
+  start_context "test/golint"
+  [ -x "$(which golint)" ] && run golint ./...
+  end_context #test/golint
+
+  #
+  # Ensure all files are formatted per the `go fmt` tool
+  #
+  start_context "test/gofmt"
+
+  run_and_comment check_gofmt
+  end_context #test/gofmt
 }
 
 function run_unit_tests() {
@@ -142,47 +212,11 @@ function run_unit_tests() {
 # GOBIN=/my/path/to/bin ./test.sh
 GOBIN=${GOBIN:-$HOME/gopath/bin}
 
-#
-# Run Go Vet, a correctness-focused static analysis tool
-#
-
-start_context "test/vet"
-run_and_comment go vet ./...
-end_context #test/vet
-
-#
-# Run Go Lint, a style-focused static analysis tool
-#
-
-start_context "test/golint"
-[ -x "$(which golint)" ] && run golint ./...
-end_context #test/golint
-
-#
-# Ensure all files are formatted per the `go fmt` tool
-#
-start_context "test/gofmt"
-check_gofmt() {
-  unformatted=$(find . -name "*.go" -not -path "./Godeps/*" -print | xargs -n1 gofmt -l)
-  if [ "x${unformatted}" == "x" ] ; then
-    return 0
-  else
-    V="Unformatted files found.
-    Please run 'go fmt' on each of these files and amend your commit to continue."
-
-    for f in ${unformatted}; do
-      V=$(printf "%s\n - %s" "${V}" "${f}")
-    done
-
-    # Print to stdout
-    printf "%s\n\n" "${V}"
-    [ "${TRAVIS}" == "true" ] || exit 1 # Stop here if running locally
-    return 1
-  fi
-}
-
-run_and_comment check_gofmt
-end_context #test/gofmt
+if [ "${SKIP_TOOLS}" == "1" ]; then
+  echo "Skipping the build analysis tools."
+else
+  run_build_analysis_tools
+fi
 
 #
 # Unit Tests. These do not receive a context or status updates,
