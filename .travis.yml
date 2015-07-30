@@ -5,7 +5,7 @@ go:
 
 services:
   - rabbitmq
-  - mariadb
+  - mysql # FIXME change to mariadb in new stuff
 
 sudo: required
 
