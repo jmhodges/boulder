@@ -30,6 +30,7 @@ matrix:
 branches:
   only:
     - master
+    - le_update_challenges
 
 before_install:
   # Github-PR-Status secret
