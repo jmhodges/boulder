@@ -109,7 +109,7 @@ function build_letsencrypt() {
     $LETSENCRYPT_PATH || exit 1
 
   cd $LETSENCRYPT_PATH
-  git checkout update-challenges
+  run git checkout -b update-challenges origin/update-challenges
 
   run virtualenv --no-site-packages -p $PY ./venv
   run ./venv/bin/pip install -r requirements.txt -e acme -e . -e letsencrypt-apache -e letsencrypt-nginx
