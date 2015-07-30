@@ -41,6 +41,10 @@ if [[ "${uname_os}" == "Darwin" ]]; then
   IS_DARWIN="1"
 fi
 
+if [ "${TRAVIS}" == "true" ]; then
+  mysql -u root -e "create database boulder_test; grant all privileges on boulder_test.* to 'boulder@localhost'"
+fi
+
 start_context() {
   CONTEXT="$1"
   printf "[%16s] Starting\n" ${CONTEXT}
