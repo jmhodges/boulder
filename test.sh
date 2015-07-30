@@ -42,7 +42,7 @@ if [[ "${uname_os}" == "Darwin" ]]; then
 fi
 
 if [ "${TRAVIS}" == "true" ]; then
-  mysql -u root -e "create database boulder_test; grant all privileges on boulder_test.* to 'boulder@localhost'"
+  mysql -u root -e "create database boulder_test; grant all privileges on boulder_test.* to 'boulder'@'localhost'"
 fi
 
 start_context() {

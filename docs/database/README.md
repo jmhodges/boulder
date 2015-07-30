@@ -2,5 +2,5 @@ These `.sql` files define the table layout, indicies, relationships, and users d
 
 The currently supported database is MariaDB 5.5.
 
-    mysql -u root -e "create database boulder_test; create database boulder_development; grant all privileges on boulder_test.* to 'boulder@localhost';"
+    mysql -u root -e "create database boulder_test; create database boulder_development; grant all privileges on boulder_test.* to 'boulder'@'localhost';"
 
