@@ -15,6 +15,7 @@ matrix:
 branches:
   only:
     - master
+    - no_make
 
 sudo: required
 
