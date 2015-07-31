@@ -17,7 +17,7 @@ addons:
       - libssl-dev
       - libffi-dev
       - ca-certificates
-      - syslog
+      - rsyslog
 
 sudo: false
 
