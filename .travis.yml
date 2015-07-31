@@ -15,7 +15,7 @@ matrix:
 branches:
   only:
     - master
-    - le_update_challenges
+    - le_update_challenges_with_fixes
 
 sudo: required
 
