@@ -426,10 +426,8 @@ function getReadyToValidate(err, resp, body) {
   }
 
   var challenge = simpleHttp[0];
-  var path = crypto.randomString(8) + ".txt";
   var challengePath = ".well-known/acme-challenge/" + challenge.token;
   state.responseURL = challenge["uri"];
-  state.path = path;
 
   // Sign validation JWS
   var validationObject = JSON.stringify({
@@ -469,7 +467,6 @@ function getReadyToValidate(err, resp, body) {
   cli.spinner("Validating domain");
   post(state.responseURL, {
     resource: "challenge",
-    path: state.path,
     tls: false
   }, ensureValidation);
 }
