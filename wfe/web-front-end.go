@@ -228,6 +228,15 @@ func (wfe *WebFrontEndImpl) Handler() (http.Handler, error) {
 
 // Method implementations
 
+var indexTmpl = template.Must(template.New("body").Parse(`<html>
+  <body>
+    This is an <a href="https://github.com/letsencrypt/acme-spec/">ACME</a>
+    Certificate Authority running <a href="https://github.com/letsencrypt/boulder">Boulder</a>,
+    New registration is available at <a href="{{.NewReg}}">{{.NewReg}}</a>.
+  </body>
+</html>
+`))
+
 // Index serves a simple identification page. It is not part of the ACME spec.
 func (wfe *WebFrontEndImpl) Index(response http.ResponseWriter, request *http.Request) {
 	logEvent := wfe.populateRequestEvent(request)
@@ -242,15 +251,11 @@ func (wfe *WebFrontEndImpl) Index(response http.ResponseWriter, request *http.Re
 		return
 	}
 
-	tmpl := template.Must(template.New("body").Parse(`<html>
-  <body>
-    This is an <a href="https://github.com/letsencrypt/acme-spec/">ACME</a>
-    Certificate Authority running <a href="https://github.com/letsencrypt/boulder">Boulder</a>,
-    New registration is available at <a href="{{.NewReg}}">{{.NewReg}}</a>.
-  </body>
-</html>
-`))
-	tmpl.Execute(response, wfe)
+	err := indexTmpl.Execute(response, wfe)
+	if err != nil {
+		wfe.log.Debug(fmt.Sprintf("Unable to render index: %s", err))
+		wfe.sendError(response, err.Error(), nil, http.StatusInternalServerError)
+	}
 	response.Header().Set("Content-Type", "text/html")
 	addCacheHeader(response, wfe.IndexCacheDuration.Seconds())
 }

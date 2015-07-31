@@ -460,7 +460,10 @@ func (va ValidationAuthorityImpl) validate(authz core.Authorization, challengeIn
 
 	va.log.Notice(fmt.Sprintf("Validations: %+v", authz))
 
-	va.RA.OnValidationUpdate(authz)
+	err := va.RA.OnValidationUpdate(authz)
+	if err != nil {
+		va.log.Error(fmt.Sprintf("OnValidationUpdate errored with %s", err))
+	}
 }
 
 // UpdateValidations runs the validate() method asynchronously using goroutines.
