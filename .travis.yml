@@ -17,6 +17,7 @@ addons:
       - libssl-dev
       - libffi-dev
       - ca-certificates
+      - syslog-ng
 
 sudo: false
 
