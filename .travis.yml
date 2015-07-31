@@ -29,6 +29,7 @@ matrix:
 branches:
   only:
     - master
+    - containers_redux
 
 before_install:
   # Github-PR-Status secret
