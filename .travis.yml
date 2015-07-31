@@ -28,6 +28,7 @@ matrix:
 branches:
   only:
     - master
+    - investigate_containers_branch
 
 before_install:
   # Github-PR-Status secret
