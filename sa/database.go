@@ -35,7 +35,6 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 	logger := blog.GetAuditLogger()
 
 	if driver == "mysql" {
-		// Check the parseTime=true DSN is present
 		dbURI, err := url.Parse(dbConnect)
 		if err != nil {
 			return nil, err
@@ -48,7 +47,7 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 			dsnVals.Set("parseTime", "true")
 			dbURI.RawQuery = dsnVals.Encode()
 		}
-		dbConnect = dbURI.String()
+		dbConnect = recombineURLForDB(dbURI)
 	}
 
 	db, err := sql.Open(driver, dbConnect)
@@ -74,6 +73,24 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 	initTables(dbmap)
 
 	return dbmap, err
+}
+
+// recombineURLForDB pieces togethr a database url in a way the the
+// mysql driver can use from a url that was parsed. The mysql driver
+// needs the Host data to be wrapped in "tcp()" but url.Parse in Go
+// 1.5beta3 errors when it sees because of the trailing ")" in the
+// port area. So, we can't have "tcp()" in the configs, but can't
+// leave it out before passing it to the mysql driver. Compromise by
+// doing the leg work for both if the config says the database URL's
+// scheme is a fake one called "mysqltcp://". See
+// https://github.com/go-sql-driver/mysql/issues/362 and
+// https://github.com/golang/go/issues/12023 for why we have to futz
+// around and avoid URL.String. This is really annoying and I'm sorry.
+func recombineURLForDB(dbURL *url.URL) string {
+	if dbURL.Scheme == "mysqltcp" {
+		return dbURL.User.String() + "@tcp(" + dbURL.Host + ")" + dbURL.Path + "?" + dbURL.RawQuery
+	}
+	return dbURL.String()
 }
 
 // SetSQLDebug enables/disables GORP SQL-level Debugging

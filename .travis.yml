@@ -17,19 +17,21 @@ addons:
       - libffi-dev
       - ca-certificates
       - rsyslog
+  mariadb: "5.5"
 
 sudo: false
 
 services:
   - rabbitmq
+  - mysql
 
 matrix:
   fast_finish: true
 
-# Only build pushes to the master branch (and PRs)
-branches:
-  only:
-    - master
+# FIXME
+# branches:
+#   only:
+#     - master
 
 before_install:
   # Github-PR-Status secret

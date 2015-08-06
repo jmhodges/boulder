@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -342,6 +343,8 @@ func parseHTTPConnError(err error) core.ProblemType {
 	if urlErr, ok := err.(*url.Error); ok {
 		err = urlErr.Err
 	}
+
+	fmt.Fprintf(os.Stderr, "OKAY GOT %#v\n", err)
 
 	// XXX: On all of the resolvers I tested that validate DNSSEC, there is
 	// no differentation between a DNSSEC failure and an unknown host. If we
