@@ -34,10 +34,6 @@ fi
 
 GITHUB_SECRET_FILE="$(pwd)/test/github-secret.json"
 
-if [ "${TRAVIS}" == "true" ]; then
-  mysql -u root -e "create database boulder_test; grant all privileges on boulder_test.* to 'boulder'@'localhost'"
-fi
-
 start_context() {
   CONTEXT="$1"
   printf "[%16s] Starting\n" ${CONTEXT}
@@ -210,6 +206,10 @@ fi
 if [ "${SKIP_INTEGRATION_TESTS}" = "1" ]; then
   echo "Skipping integration tests."
   exit ${FAILURE}
+fi
+
+if [ "${TRAVIS}" == "true" ]; then
+  ./test/create_db.sh || die "unable to create the boulder database with test/create_db.sh"
 fi
 
 #

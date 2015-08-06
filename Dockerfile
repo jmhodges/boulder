@@ -60,4 +60,7 @@ RUN go install \
 WORKDIR /go/src/github.com/letsencrypt/boulder
 CMD ["bash", "-c", "service mysql start && \
 service rsyslog start && \
-service rabbitmq-server start && /bin/bash"]
+service rabbitmq-server start && \
+cd /go/src/github.com/letsencrypt/boulder/ && \
+./test/create_db.sh && \
+./start.py"]
