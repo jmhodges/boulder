@@ -34,6 +34,10 @@ fi
 
 GITHUB_SECRET_FILE="$(pwd)/test/github-secret.json"
 
+if [ "${TRAVIS}" == "true" ]; then
+  mysql -u root -e "create database boulder_test; grant all privileges on boulder_test.* to 'boulder'@'localhost'"
+fi
+
 start_context() {
   CONTEXT="$1"
   printf "[%16s] Starting\n" ${CONTEXT}
