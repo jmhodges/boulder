@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
-	gorp "github.com/letsencrypt/boulder/Godeps/_workspace/src/gopkg.in/gorp.v1"
-
 	jose "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/letsencrypt/go-jose"
+	gorp "github.com/letsencrypt/boulder/Godeps/_workspace/src/gopkg.in/gorp.v1"
 	"github.com/letsencrypt/boulder/core"
 	blog "github.com/letsencrypt/boulder/log"
 )
@@ -27,6 +26,8 @@ type SQLStorageAuthority struct {
 	dbMap *gorp.DbMap
 	log   *blog.AuditLogger
 }
+
+var _ core.StorageAuthority = &SQLStorageAuthority{}
 
 func digest256(data []byte) []byte {
 	d := sha256.New()
@@ -107,33 +108,34 @@ func (e NoSuchRegistrationError) Error() string {
 }
 
 // GetRegistration obtains a Registration by ID
-func (ssa *SQLStorageAuthority) GetRegistration(id int64) (reg core.Registration, err error) {
-	regObj, err := ssa.dbMap.Get(core.Registration{}, id)
+func (ssa *SQLStorageAuthority) GetRegistration(id int64) (core.Registration, error) {
+	regObj, err := ssa.dbMap.Get(regModel{}, id)
 	if err != nil {
-		return
+		return core.Registration{}, err
 	}
 	if regObj == nil {
 		err = NoSuchRegistrationError{fmt.Sprintf("No registrations with ID %d", id)}
-		return
+		return core.Registration{}, err
 	}
-	regPtr, ok := regObj.(*core.Registration)
+	regPtr, ok := regObj.(*regModel)
 	if !ok {
-		err = fmt.Errorf("Invalid cast")
+		return core.Registration{}, fmt.Errorf("Invalid cast to reg model object")
 	}
-
-	reg = *regPtr
-	return
+	return modelToRegistration(regPtr)
 }
 
 // GetRegistrationByKey obtains a Registration by JWK
-func (ssa *SQLStorageAuthority) GetRegistrationByKey(key jose.JsonWebKey) (reg core.Registration, err error) {
-	keyJSON, err := json.Marshal(key)
+func (ssa *SQLStorageAuthority) GetRegistrationByKey(key jose.JsonWebKey) (core.Registration, error) {
+	reg := &regModel{}
+	sha, err := core.KeyDigest(key.Key)
 	if err != nil {
-		return
+		return core.Registration{}, err
 	}
-
-	err = ssa.dbMap.SelectOne(&reg, "SELECT * FROM registrations WHERE jwk = :key", map[string]interface{}{"key": string(keyJSON)})
-	return
+	err = ssa.dbMap.SelectOne(reg, "SELECT * FROM registrations WHERE jwk_sha256 = :key", map[string]interface{}{"key": sha})
+	if err != nil {
+		return core.Registration{}, err
+	}
+	return modelToRegistration(reg)
 }
 
 // GetAuthorization obtains an Authorization by ID
@@ -250,13 +252,19 @@ func (ssa *SQLStorageAuthority) NewRegistration(reg core.Registration) (core.Reg
 	if err != nil {
 		return reg, err
 	}
-
-	err = tx.Insert(&reg)
+	rm, err := registrationToModel(&reg)
+	if err != nil {
+		return reg, err
+	}
+	err = tx.Insert(rm)
 	if err != nil {
 		tx.Rollback()
 		return reg, err
 	}
-
+	reg, err = modelToRegistration(rm)
+	if err != nil {
+		return reg, err
+	}
 	err = tx.Commit()
 	return reg, err
 }
@@ -358,8 +366,11 @@ func (ssa *SQLStorageAuthority) UpdateRegistration(reg core.Registration) (err e
 		tx.Rollback()
 		return
 	}
-
-	_, err = tx.Update(&reg)
+	rm, err := registrationToModel(&reg)
+	if err != nil {
+		return
+	}
+	_, err = tx.Update(rm)
 	if err != nil {
 		tx.Rollback()
 		return
