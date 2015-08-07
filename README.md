@@ -26,10 +26,6 @@ A quick-start method for running a Boulder instance is to use one of the example
 
     docker run -i --name=boulder --read-only=true --rm=true -p 4000:4000 quay.io/letsencrypt/boulder:latest
 
-You can also get a shell by running
-
-    docker run -i --name=boulder --rm=true -p 4000:4000 quay.io/letsencrypt/boulder:latest /bin/bash
-
 
 Alternatively, to run all services locally, using AMQP to pass messages between them, you can use:
 
