@@ -28,10 +28,9 @@ services:
 matrix:
   fast_finish: true
 
-# FIXME
-# branches:
-#   only:
-#     - master
+branches:
+  only:
+    - master
 
 before_install:
   # Github-PR-Status secret
