@@ -53,7 +53,7 @@ update_status() {
   fi
 }
 
-run() {
+function run() {
   echo "$@"
   "$@" 2>&1
   local status=$?
@@ -70,7 +70,7 @@ run() {
   return ${status}
 }
 
-run_and_comment() {
+function run_and_comment() {
   if [ "x${TRAVIS}" = "x" ] || [ "${TRAVIS_PULL_REQUEST}" == "false" ] || [ ! -f "${GITHUB_SECRET_FILE}" ] ; then
     run "$@"
   else
