@@ -63,4 +63,4 @@ service rsyslog start && \
 service rabbitmq-server start && \
 cd /go/src/github.com/letsencrypt/boulder/ && \
 ./test/create_db.sh && \
-./start.py"]
+WFE_LISTEN_ADDR=0.0.0.0:4000 ./start.py"]
