@@ -264,79 +264,79 @@ func TestSimpleHttp(t *testing.T) {
 	tls := false
 	chall := core.Challenge{Type: core.ChallengeTypeSimpleHTTP, Token: expectedToken, TLS: &tls}
 
-	// invalidChall, err := va.validateSimpleHTTP(ident, chall, AccountKey)
-	// test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
-	// test.AssertError(t, err, "Server's not up yet; expected refusal. Where did we connect?")
-	// test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	invalidChall, err := va.validateSimpleHTTP(ident, chall, AccountKey)
+	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
+	test.AssertError(t, err, "Server's not up yet; expected refusal. Where did we connect?")
+	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
 
-	// stopChan := make(chan bool, 1)
-	// waitChan := make(chan bool, 1)
-	// go simpleSrv(t, expectedToken, stopChan, waitChan, tls)
-	// defer func() { stopChan <- true }()
-	// <-waitChan
+	stopChan := make(chan bool, 1)
+	waitChan := make(chan bool, 1)
+	go simpleSrv(t, expectedToken, stopChan, waitChan, tls)
+	defer func() { stopChan <- true }()
+	<-waitChan
 
-	// log.Clear()
-	// finChall, err := va.validateSimpleHTTP(ident, chall, AccountKey)
-	// test.AssertEquals(t, finChall.Status, core.StatusValid)
-	// test.AssertNotError(t, err, "Error validating simpleHttp")
-	// test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
+	log.Clear()
+	finChall, err := va.validateSimpleHTTP(ident, chall, AccountKey)
+	test.AssertEquals(t, finChall.Status, core.StatusValid)
+	test.AssertNotError(t, err, "Error validating simpleHttp")
+	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
-	// log.Clear()
-	// chall.Token = path404
-	// invalidChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
-	// test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
-	// test.AssertError(t, err, "Should have found a 404 for the challenge.")
-	// test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
-	// test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
+	log.Clear()
+	chall.Token = path404
+	invalidChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
+	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
+	test.AssertError(t, err, "Should have found a 404 for the challenge.")
+	test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
-	// log.Clear()
-	// chall.Token = pathWrongToken
-	// // The "wrong token" will actually be the expectedToken.  It's wrong
-	// // because it doesn't match pathWrongToken.
-	// invalidChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
-	// test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
-	// test.AssertError(t, err, "Should have found the wrong token value.")
-	// test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
-	// test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
+	log.Clear()
+	chall.Token = pathWrongToken
+	// The "wrong token" will actually be the expectedToken.  It's wrong
+	// because it doesn't match pathWrongToken.
+	invalidChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
+	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
+	test.AssertError(t, err, "Should have found the wrong token value.")
+	test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
-	// log.Clear()
-	// chall.Token = pathMoved
-	// finChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
-	// test.AssertEquals(t, finChall.Status, core.StatusValid)
-	// test.AssertNotError(t, err, "Failed to follow 301 redirect")
-	// test.AssertEquals(t, len(log.GetAllMatching(`redirect from ".*/301" to ".*/valid"`)), 1)
+	log.Clear()
+	chall.Token = pathMoved
+	finChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
+	test.AssertEquals(t, finChall.Status, core.StatusValid)
+	test.AssertNotError(t, err, "Failed to follow 301 redirect")
+	test.AssertEquals(t, len(log.GetAllMatching(`redirect from ".*/301" to ".*/valid"`)), 1)
 
-	// log.Clear()
+	log.Clear()
 	chall.Token = pathFound
-	// finChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
-	// test.AssertEquals(t, finChall.Status, core.StatusValid)
-	// test.AssertNotError(t, err, "Failed to follow 302 redirect")
-	// test.AssertEquals(t, len(log.GetAllMatching(`redirect from ".*/302" to ".*/301"`)), 1)
-	// test.AssertEquals(t, len(log.GetAllMatching(`redirect from ".*/301" to ".*/valid"`)), 1)
+	finChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
+	test.AssertEquals(t, finChall.Status, core.StatusValid)
+	test.AssertNotError(t, err, "Failed to follow 302 redirect")
+	test.AssertEquals(t, len(log.GetAllMatching(`redirect from ".*/302" to ".*/301"`)), 1)
+	test.AssertEquals(t, len(log.GetAllMatching(`redirect from ".*/301" to ".*/valid"`)), 1)
 
-	// ipIdentifier := core.AcmeIdentifier{Type: core.IdentifierType("ip"), Value: "127.0.0.1"}
-	// invalidChall, err = va.validateSimpleHTTP(ipIdentifier, chall, AccountKey)
-	// test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
-	// test.AssertError(t, err, "IdentifierType IP shouldn't have worked.")
-	// test.AssertEquals(t, invalidChall.Error.Type, core.MalformedProblem)
+	ipIdentifier := core.AcmeIdentifier{Type: core.IdentifierType("ip"), Value: "127.0.0.1"}
+	invalidChall, err = va.validateSimpleHTTP(ipIdentifier, chall, AccountKey)
+	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
+	test.AssertError(t, err, "IdentifierType IP shouldn't have worked.")
+	test.AssertEquals(t, invalidChall.Error.Type, core.MalformedProblem)
 
 	va.TestMode = false
-	invalidChall, err := va.validateSimpleHTTP(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "always.invalid"}, chall, AccountKey)
+	invalidChall, err = va.validateSimpleHTTP(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "always.invalid"}, chall, AccountKey)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Domain name is invalid.")
 	test.AssertEquals(t, invalidChall.Error.Type, core.UnknownHostProblem)
-	// va.TestMode = true
+	va.TestMode = true
 
-	// chall.Token = "wait-long"
-	// started := time.Now()
-	// invalidChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
-	// took := time.Since(started)
-	// // Check that the HTTP connection times out after 5 seconds and doesn't block for 10 seconds
-	// test.Assert(t, (took > (time.Second * 5)), "HTTP timed out before 5 seconds")
-	// test.Assert(t, (took < (time.Second * 10)), "HTTP connection didn't timeout after 5 seconds")
-	// test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
-	// test.AssertError(t, err, "Connection should've timed out")
-	// test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	chall.Token = "wait-long"
+	started := time.Now()
+	invalidChall, err = va.validateSimpleHTTP(ident, chall, AccountKey)
+	took := time.Since(started)
+	// Check that the HTTP connection times out after 5 seconds and doesn't block for 10 seconds
+	test.Assert(t, (took > (time.Second * 5)), "HTTP timed out before 5 seconds")
+	test.Assert(t, (took < (time.Second * 10)), "HTTP connection didn't timeout after 5 seconds")
+	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
+	test.AssertError(t, err, "Connection should've timed out")
+	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
 }
 
 func TestDvsni(t *testing.T) {
