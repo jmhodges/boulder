@@ -82,7 +82,7 @@
 		},
 		{
 			"ImportPath": "github.com/miekg/dns",
-			"Rev": "259969e797348d20e8c144a7573c23f06fa962f5"
+			"Rev": "58c5f4cf6ecd46a1eb27097e5c49a60674a56db6"
 		},
 		{
 			"ImportPath": "github.com/miekg/pkcs11",
