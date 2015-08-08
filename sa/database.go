@@ -98,9 +98,9 @@ func recombineURLForDB(dbURL *url.URL) string {
 			q.Add("username", user)
 		}
 		if hasPass {
-			q.Add("password", passd)
+			q.Add("password", passwd)
 		}
-		return dbConn + dbURL.Path + "?" + q.Encode()
+		return dbConn + dbURL.EscapedPath() + "?" + q.Encode()
 	}
 	return dbURL.String()
 }
