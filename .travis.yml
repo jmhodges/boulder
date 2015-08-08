@@ -30,8 +30,8 @@ matrix:
 
 before_install:
   - curl -O https://storage.googleapis.com/golang/go1.5rc1.linux-386.tar.gz
-  - tar xzvf go1.5rc1.linux-386.tar.gz
-  - export PATH=$TRAVIS_BUILD_DIR/go/bin:$PATH
+  - tar xzf go1.5rc1.linux-386.tar.gz -C /tmp
+  - export PATH=/tmp/go/bin:$PATH
   - hash -r
   # Github-PR-Status secret
   - openssl aes-256-cbc -K $encrypted_53b2630f0fb4_key -iv $encrypted_53b2630f0fb4_iv -in test/github-secret.json.enc -out test/github-secret.json -d || true
