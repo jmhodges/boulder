@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"strings"
 
 	// Load both drivers to allow configuring either
 	_ "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/go-sql-driver/mysql"
@@ -35,20 +36,11 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 	logger := blog.GetAuditLogger()
 
 	if driver == "mysql" {
-		// Check the parseTime=true DSN is present
-		dbURI, err := url.Parse(dbConnect)
+		var err error
+		dbConnect, err = recombineURLForDB(dbConnect)
 		if err != nil {
 			return nil, err
 		}
-		dsnVals, err := url.ParseQuery(dbURI.RawQuery)
-		if err != nil {
-			return nil, err
-		}
-		if k := dsnVals.Get("parseTime"); k != "true" {
-			dsnVals.Set("parseTime", "true")
-			dbURI.RawQuery = dsnVals.Encode()
-		}
-		dbConnect = recombineURLForDB(dbURI)
 	}
 
 	db, err := sql.Open(driver, dbConnect)
@@ -88,21 +80,35 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 // https://github.com/go-sql-driver/mysql/issues/362 and
 // https://github.com/golang/go/issues/12023 for why we have to futz
 // around and avoid URL.String.
-func recombineURLForDB(dbURL *url.URL) string {
-	if dbURL.Scheme == "mysqltcp" {
-		dbConn := "mysql://@tcp(" + dbURL.Host + ")"
-		q := dbURL.Query()
-		user := dbURL.User.Username()
-		passwd, hasPass := dbURL.User.Password()
-		if user != "" {
-			q.Add("username", user)
-		}
-		if hasPass {
-			q.Add("password", passwd)
-		}
-		return dbConn + dbURL.EscapedPath() + "?" + q.Encode()
+func recombineURLForDB(dbConnect string) (string, error) {
+	if !strings.HasPrefix(dbConnect, "mysqltcp://") {
+		return dbConnect, nil
 	}
-	return dbURL.String()
+	dbURL, err := url.Parse(dbConnect)
+	if err != nil {
+		return "", err
+	}
+	dsnVals, err := url.ParseQuery(dbURL.RawQuery)
+	if err != nil {
+		return "", err
+	}
+
+	// Check the parseTime=true DSN is present
+	if k := dsnVals.Get("parseTime"); k != "true" {
+		dsnVals.Set("parseTime", "true")
+		dbURL.RawQuery = dsnVals.Encode()
+	}
+	user := dbURL.User.Username()
+	passwd, hasPass := dbURL.User.Password()
+	dbConn := ""
+	if user != "" {
+		dbConn = url.QueryEscape(user)
+	}
+	if hasPass {
+		dbConn += ":" + passwd
+	}
+	dbConn += "@tcp(" + dbURL.Host + ")"
+	return dbConn + dbURL.EscapedPath() + "?" + dsnVals.Encode(), nil
 }
 
 // SetSQLDebug enables/disables GORP SQL-level Debugging
