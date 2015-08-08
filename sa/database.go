@@ -35,6 +35,7 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 	logger := blog.GetAuditLogger()
 
 	if driver == "mysql" {
+		// Check the parseTime=true DSN is present
 		dbURI, err := url.Parse(dbConnect)
 		if err != nil {
 			return nil, err
@@ -75,20 +76,31 @@ func NewDbMap(driver string, dbConnect string) (*gorp.DbMap, error) {
 	return dbmap, err
 }
 
-// recombineURLForDB pieces togethr a database url in a way the the
-// mysql driver can use from a url that was parsed. The mysql driver
-// needs the Host data to be wrapped in "tcp()" but url.Parse in Go
-// 1.5beta3 errors when it sees because of the trailing ")" in the
-// port area. So, we can't have "tcp()" in the configs, but can't
-// leave it out before passing it to the mysql driver. Compromise by
-// doing the leg work for both if the config says the database URL's
-// scheme is a fake one called "mysqltcp://". See
+// recombineURLForDB transforms a database URL to a URL-like string
+// that the mysql driver can use. The mysql driver needs the Host data
+// to be wrapped in "tcp()" but url.Parse will escape the parentheses
+// and the mysql driver doesn't understand them. So, we can't have
+// "tcp()" in the configs, but can't leave it out before passing it to
+// the mysql driver. Similarly, the driver needs the password and
+// username unescaped. Compromise by doing the leg work if the config
+// says the database URL's scheme is a fake one called
+// "mysqltcp://". See
 // https://github.com/go-sql-driver/mysql/issues/362 and
 // https://github.com/golang/go/issues/12023 for why we have to futz
-// around and avoid URL.String. This is really annoying and I'm sorry.
+// around and avoid URL.String.
 func recombineURLForDB(dbURL *url.URL) string {
 	if dbURL.Scheme == "mysqltcp" {
-		return dbURL.User.String() + "@tcp(" + dbURL.Host + ")" + dbURL.Path + "?" + dbURL.RawQuery
+		dbConn := "mysql://@tcp(" + dbURL.Host + ")"
+		q := dbURL.Query()
+		user := dbURL.User.Username()
+		passwd, hasPass := dbURL.User.Password()
+		if user != "" {
+			q.Add("username", user)
+		}
+		if hasPass {
+			q.Add("password", passd)
+		}
+		return dbConn + dbURL.Path + "?" + q.Encode()
 	}
 	return dbURL.String()
 }
