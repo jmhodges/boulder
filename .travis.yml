@@ -1,3 +1,5 @@
+language: go
+
 addons:
   hosts:
     - le.wtf
