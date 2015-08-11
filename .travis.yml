@@ -27,9 +27,9 @@ matrix:
   fast_finish: true
 
 # Only build pushes to the master branch (and PRs)
-branches:
-  only:
-    - master
+# branches: # FIXME
+#   only:
+#     - master
 
 before_install:
   # Github-PR-Status secret
