@@ -41,7 +41,7 @@ type singleton struct {
 }
 
 // _Singleton is the single AuditLogger entity in memory
-var _Singleton singleton
+var _Singleton = &singleton{}
 
 // The constant used to identify audit-specific messages
 const auditTag = "[AUDIT]"
