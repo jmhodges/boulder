@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
+	"github.com/letsencrypt/boulder/log"
 
 	jose "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/letsencrypt/go-jose"
 	"github.com/letsencrypt/boulder/core"
@@ -334,8 +335,21 @@ func signRequest(t *testing.T, req string, nonceService *core.NonceService) stri
 }
 
 func setupWFE(t *testing.T) WebFrontEndImpl {
-	wfe, err := NewWebFrontEndImpl()
-	test.AssertNotError(t, err, "Unable to create WFE")
+	wfe, _ := setupWFEWithMockLog(t)
+	return wfe
+}
+
+func setupWFEWithMockLog(t *testing.T) (WebFrontEndImpl, *mocks.MockSyslogWriter) {
+	sw := mocks.NewSyslogWriter()
+	sc, _ := statsd.NewNoopClient()
+	logger, err := log.NewAuditLogger(sw, sc)
+	if err != nil {
+		t.Fatal("unable to create audit logger")
+	}
+	wfe, err := NewWebFrontEndImpl(logger)
+	if err != nil {
+		t.Fatal("unable to create WFE")
+	}
 
 	wfe.NewReg = wfe.BaseURL + NewRegPath
 	wfe.RegBase = wfe.BaseURL + RegPath
@@ -344,9 +358,7 @@ func setupWFE(t *testing.T) WebFrontEndImpl {
 	wfe.NewCert = wfe.BaseURL + NewCertPath
 	wfe.CertBase = wfe.BaseURL + CertPath
 	wfe.SubscriberAgreementURL = agreementURL
-	wfe.log.SyslogWriter = mocks.NewSyslogWriter()
-
-	return wfe
+	return wfe, sw
 }
 
 func mustParseURL(s string) *url.URL {
@@ -506,13 +518,12 @@ func TestDirectory(t *testing.T) {
 // TODO: Write additional test cases for:
 //  - RA returns with a failure
 func TestIssueCertificate(t *testing.T) {
-	wfe := setupWFE(t)
+	wfe, mockLog := setupWFEWithMockLog(t)
 	mux, err := wfe.Handler()
 	test.AssertNotError(t, err, "Problem setting up HTTP handlers")
-	mockLog := wfe.log.SyslogWriter.(*mocks.MockSyslogWriter)
 
 	// TODO: Use a mock RA so we can test various conditions of authorized, not authorized, etc.
-	ra := ra.NewRegistrationAuthorityImpl()
+	ra := ra.NewRegistrationAuthorityImpl(wfe.log)
 	ra.SA = &MockSA{}
 	ra.CA = &MockCA{}
 	wfe.SA = &MockSA{}
@@ -634,6 +645,7 @@ func TestIssueCertificate(t *testing.T) {
 
 	mockLog.Clear()
 	responseWriter.Body.Reset()
+
 	wfe.NewCertificate(responseWriter, &http.Request{
 		Method: "POST",
 		Body: makeBody(signRequest(t, `{
@@ -1277,7 +1289,7 @@ func TestLogCsrPem(t *testing.T) {
 	const certificateRequestJson = `{
 		"csr": "MIICWTCCAUECAQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAycX3ca-fViOuRWF38mssORISFxbJvspDfhPGRBZDxJ63NIqQzupB-6dp48xkcX7Z_KDaRJStcpJT2S0u33moNT4FHLklQBETLhExDk66cmlz6Xibp3LGZAwhWuec7wJoEwIgY8oq4rxihIyGq7HVIJoq9DqZGrUgfZMDeEJqbphukQOaXGEop7mD-eeu8-z5EVkB1LiJ6Yej6R8MAhVPHzG5fyOu6YVo6vY6QgwjRLfZHNj5XthxgPIEETZlUbiSoI6J19GYHvLURBTy5Ys54lYAPIGfNwcIBAH4gtH9FrYcDY68R22rp4iuxdvkf03ZWiT0F2W1y7_C9B2jayTzvQIDAQABoAAwDQYJKoZIhvcNAQELBQADggEBAHd6Do9DIZ2hvdt1GwBXYjsqprZidT_DYOMfYcK17KlvdkFT58XrBH88ulLZ72NXEpiFMeTyzfs3XEyGq_Bbe7TBGVYZabUEh-LOskYwhgcOuThVN7tHnH5rhN-gb7cEdysjTb1QL-vOUwYgV75CB6PE5JVYK-cQsMIVvo0Kz4TpNgjJnWzbcH7h0mtvub-fCv92vBPjvYq8gUDLNrok6rbg05tdOJkXsF2G_W-Q6sf2Fvx0bK5JeH4an7P7cXF9VG9nd4sRt5zd-L3IcyvHVKxNhIJXZVH0AOqh_1YrKI9R0QKQiZCEy0xN1okPlcaIVaFhb7IKAHPxTI3r5f72LXY"
 	}`
-	wfe := setupWFE(t)
+	wfe, mockLog := setupWFEWithMockLog(t)
 	var certificateRequest core.CertificateRequest
 	err := json.Unmarshal([]byte(certificateRequestJson), &certificateRequest)
 	test.AssertNotError(t, err, "Unable to parse certificateRequest")
@@ -1290,7 +1302,6 @@ func TestLogCsrPem(t *testing.T) {
 
 	wfe.logCsr(remoteAddr, certificateRequest, reg)
 
-	mockLog := wfe.log.SyslogWriter.(*mocks.MockSyslogWriter)
 	matches := mockLog.GetAllMatching("Certificate request")
 	test.Assert(t, len(matches) == 1,
 		"Incorrect number of certificate request log entries")

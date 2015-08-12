@@ -208,7 +208,7 @@ func TestTransmission(t *testing.T) {
 	test.AssertNotError(t, err, "Failed to open log server")
 	defer l.Close()
 
-	stats, _ := statsd.NewNoopClient(nil)
+	stats, err := statsd.NewNoopClient(nil)
 	fmt.Printf("Going to %s\n", l.LocalAddr().String())
 	writer, err := syslog.Dial("udp", l.LocalAddr().String(), syslog.LOG_INFO|syslog.LOG_LOCAL0, "")
 	test.AssertNotError(t, err, "Failed to find connect to log server")

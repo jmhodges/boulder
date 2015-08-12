@@ -56,7 +56,7 @@ func (lm *LogMessage) String() string {
 //	}
 func UseMockLog() *MockSyslogWriter {
 	sw := NewSyslogWriter()
-	blog.GetAuditLogger().SyslogWriter = sw
+	blog.SetAuditLoggerSyslogWriter(sw)
 	return sw
 }
 

@@ -112,8 +112,7 @@ type requestEvent struct {
 }
 
 // NewWebFrontEndImpl constructs a web service for Boulder
-func NewWebFrontEndImpl() (WebFrontEndImpl, error) {
-	logger := blog.GetAuditLogger()
+func NewWebFrontEndImpl(logger *blog.AuditLogger) (WebFrontEndImpl, error) {
 	logger.Notice("Web Front End Starting")
 
 	nonceService, err := core.NewNonceService()

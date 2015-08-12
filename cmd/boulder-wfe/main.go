@@ -90,7 +90,7 @@ func main() {
 
 		go cmd.DebugServer(c.WFE.DebugAddr)
 
-		wfe, err := wfe.NewWebFrontEndImpl()
+		wfe, err := wfe.NewWebFrontEndImpl(auditlogger)
 		cmd.FailOnError(err, "Unable to create WFE")
 		rac, sac, closeChan := setupWFE(c, auditlogger)
 		wfe.RA = &rac

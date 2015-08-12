@@ -36,8 +36,8 @@ type SyslogWriter interface {
 
 // singleton defines the object of a Singleton pattern
 type singleton struct {
-	once sync.Once
-	log  *AuditLogger
+	sync.RWMutex
+	log *AuditLogger
 }
 
 // _Singleton is the single AuditLogger entity in memory
@@ -61,8 +61,8 @@ func defaultEmergencyExit() {
 // audit-specific methods, like Audit(), for indicating which messages
 // should be classified as audit events.
 type AuditLogger struct {
-	SyslogWriter
-	Stats        statsd.Statter
+	sw           SyslogWriter
+	stats        statsd.Statter
 	exitFunction exitFunction
 }
 
@@ -110,6 +110,8 @@ func initializeAuditLogger() {
 // must only be called once, and before calling GetAuditLogger the
 // first time.
 func SetAuditLogger(logger *AuditLogger) (err error) {
+	_Singleton.Lock()
+	defer _Singleton.Unlock()
 	if _Singleton.log != nil {
 		err = errors.New("You may not call SetAuditLogger after it has already been implicitly or explicitly set.")
 		_Singleton.log.WarningErr(err)
@@ -119,43 +121,65 @@ func SetAuditLogger(logger *AuditLogger) (err error) {
 	return
 }
 
+// SetAuditLoggerSyslogWriter sets the syslog writer for
+// mocks.UseMockLog. This is obviously not good but, unfortunately,
+// there are too many places that the global AuditLogger is being used
+// for this to be fixed in a reasonable amount of time. In the future,
+// we'll remove this in favor of passing in a non-global AuditLogger
+// that has been set up for testing to the places that need it.
+func SetAuditLoggerSyslogWriter(sw SyslogWriter) {
+	// Required because sometimes UseMockLog beats anything else
+	initializeAuditLogger()
+	// So why not just call SetAuditLogger with this SyslogWriter in
+	// place? Because sometimes it doesn't.
+	_Singleton.Lock()
+	_Singleton.log.sw = sw
+	_Singleton.Unlock()
+}
+
 // GetAuditLogger obtains the singleton audit logger. If SetAuditLogger
 // has not been called first, this method initializes with basic defaults.
 // The basic defaults cannot error, and subequent access to an already-set
 // AuditLogger also cannot error, so this method is error-safe.
 func GetAuditLogger() *AuditLogger {
-	_Singleton.once.Do(func() {
-		if _Singleton.log == nil {
-			initializeAuditLogger()
-		}
-	})
+	_Singleton.RLock()
+	if _Singleton.log != nil {
+		_Singleton.RUnlock()
+		return _Singleton.log
+	}
+	_Singleton.RUnlock()
 
-	return _Singleton.log
+	initializeAuditLogger()
+
+	_Singleton.RLock()
+	slog := _Singleton.log
+	_Singleton.RUnlock()
+	return slog
 }
 
 // Log the provided message at the appropriate level, writing to
 // both stdout and the Logger, as well as informing statsd.
 func (log *AuditLogger) logAtLevel(level, msg string) (err error) {
 	fmt.Printf("%s %s\n", time.Now().Format("2006/01/02 15:04:05"), msg)
-	log.Stats.Inc(level, 1, 1.0)
+	log.stats.Inc(level, 1, 1.0)
 
 	switch level {
 	case "Logging.Alert":
-		err = log.SyslogWriter.Alert(msg)
+		err = log.sw.Alert(msg)
 	case "Logging.Crit":
-		err = log.SyslogWriter.Crit(msg)
+		err = log.sw.Crit(msg)
 	case "Logging.Debug":
-		err = log.SyslogWriter.Debug(msg)
+		err = log.sw.Debug(msg)
 	case "Logging.Emerg":
-		err = log.SyslogWriter.Emerg(msg)
+		err = log.sw.Emerg(msg)
 	case "Logging.Err":
-		err = log.SyslogWriter.Err(msg)
+		err = log.sw.Err(msg)
 	case "Logging.Info":
-		err = log.SyslogWriter.Info(msg)
+		err = log.sw.Info(msg)
 	case "Logging.Warning":
-		err = log.SyslogWriter.Warning(msg)
+		err = log.sw.Warning(msg)
 	case "Logging.Notice":
-		err = log.SyslogWriter.Notice(msg)
+		err = log.sw.Notice(msg)
 	default:
 		err = fmt.Errorf("Unknown logging level: %s", level)
 	}
@@ -165,7 +189,7 @@ func (log *AuditLogger) logAtLevel(level, msg string) (err error) {
 // AUDIT[ Error Conditions ] 9cc4d537-8534-4970-8665-4b382abe82f3
 func (log *AuditLogger) auditAtLevel(level, msg string) (err error) {
 	// Submit a separate counter that marks an Audit event
-	log.Stats.Inc("Logging.Audit", 1, 1.0)
+	log.stats.Inc("Logging.Audit", 1, 1.0)
 
 	text := fmt.Sprintf("%s %s", auditTag, msg)
 	return log.logAtLevel(level, text)

@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cactus/go-statsd-client/statsd"
 	cfsslConfig "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cloudflare/cfssl/config"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cloudflare/cfssl/ocsp"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cloudflare/cfssl/signer/local"
@@ -24,6 +25,8 @@ import (
 	_ "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/mattn/go-sqlite3"
 	"github.com/letsencrypt/boulder/ca"
 	"github.com/letsencrypt/boulder/core"
+	blog "github.com/letsencrypt/boulder/log"
+
 	"github.com/letsencrypt/boulder/mocks"
 	"github.com/letsencrypt/boulder/policy"
 	"github.com/letsencrypt/boulder/sa"
@@ -184,8 +187,12 @@ func initAuthorities(t *testing.T) (core.CertificateAuthority, *DummyValidationA
 
 	// This registration implicitly gets ID = 1
 	Registration, _ = sa.NewRegistration(core.Registration{Key: AccountKeyA})
-
-	ra := NewRegistrationAuthorityImpl()
+	sc, _ := statsd.NewNoopClient()
+	logger, err := blog.NewAuditLogger(log, sc)
+	if err != nil {
+		t.Fatalf("unable to create AuditLogger")
+	}
+	ra := NewRegistrationAuthorityImpl(logger)
 	ra.SA = sa
 	ra.VA = va
 	ra.CA = &ca

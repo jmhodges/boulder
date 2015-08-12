@@ -37,8 +37,7 @@ type RegistrationAuthorityImpl struct {
 }
 
 // NewRegistrationAuthorityImpl constructs a new RA object.
-func NewRegistrationAuthorityImpl() RegistrationAuthorityImpl {
-	logger := blog.GetAuditLogger()
+func NewRegistrationAuthorityImpl(logger *blog.AuditLogger) RegistrationAuthorityImpl {
 	logger.Notice("Registration Authority Starting")
 
 	ra := RegistrationAuthorityImpl{log: logger}
