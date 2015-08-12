@@ -144,8 +144,9 @@ func SetAuditLoggerSyslogWriter(sw SyslogWriter) {
 func GetAuditLogger() *AuditLogger {
 	_Singleton.RLock()
 	if _Singleton.log != nil {
+		lg := _Singleton.log
 		_Singleton.RUnlock()
-		return _Singleton.log
+		return lg
 	}
 	_Singleton.RUnlock()
 
