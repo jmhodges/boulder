@@ -143,16 +143,16 @@ func SetAuditLoggerSyslogWriter(sw SyslogWriter) {
 // AuditLogger also cannot error, so this method is error-safe.
 func GetAuditLogger() *AuditLogger {
 	_Singleton.RLock()
-	lg := _Singleton.log
+	slog := _Singleton.log
 	_Singleton.RUnlock()
-	if lg != nil {
-		return lg
+	if slog != nil {
+		return slog
 	}
 
 	initializeAuditLogger()
 
 	_Singleton.RLock()
-	slog := _Singleton.log
+	slog = _Singleton.log
 	_Singleton.RUnlock()
 	return slog
 }
