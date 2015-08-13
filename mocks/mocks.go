@@ -10,17 +10,20 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	// Load SQLite3 for test purposes
-	_ "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/mattn/go-sqlite3"
+	_ "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/mattn/go-sqlite3" // FIXME
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/miekg/dns"
 	gorp "github.com/letsencrypt/boulder/Godeps/_workspace/src/gopkg.in/gorp.v1"
 )
 
 // MockCADatabase is a mock
 type MockCADatabase struct {
-	db    *gorp.DbMap
+	DB *gorp.DbMap
+
+	sync.Mutex
 	count int64
 }
 
@@ -28,18 +31,20 @@ type MockCADatabase struct {
 func NewMockCertificateAuthorityDatabase() (mock *MockCADatabase, err error) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	dbmap := &gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
-	mock = &MockCADatabase{db: dbmap, count: 1}
+	mock = &MockCADatabase{DB: dbmap, count: 1}
 	return mock, err
 }
 
 // Begin is a mock
 func (cadb *MockCADatabase) Begin() (*gorp.Transaction, error) {
-	return cadb.db.Begin()
+	return cadb.DB.Begin()
 }
 
 // IncrementAndGetSerial is a mock
 func (cadb *MockCADatabase) IncrementAndGetSerial(*gorp.Transaction) (int64, error) {
-	cadb.count = cadb.count + 1
+	cadb.Lock()
+	cadb.count++
+	cadb.Unlock()
 	return cadb.count, nil
 }
 

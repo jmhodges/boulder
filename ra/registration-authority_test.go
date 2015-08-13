@@ -21,7 +21,6 @@ import (
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cloudflare/cfssl/ocsp"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cloudflare/cfssl/signer/local"
 	jose "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/letsencrypt/go-jose"
-	_ "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/mattn/go-sqlite3"
 	"github.com/letsencrypt/boulder/ca"
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/mocks"
@@ -123,9 +122,12 @@ var (
 	AuthzFinal   = core.Authorization{}
 
 	log = mocks.UseMockLog()
+
+	// TODO(jmhodges): Turn this into boulder_sa_test
+	dbConnStr = "mysql+tcp://boulder@localhost:3306/boulder_test"
 )
 
-func initAuthorities(t *testing.T) (core.CertificateAuthority, *DummyValidationAuthority, *sa.SQLStorageAuthority, core.RegistrationAuthority) {
+func initAuthorities(t *testing.T) (core.CertificateAuthority, *DummyValidationAuthority, *sa.SQLStorageAuthority, *RegistrationAuthorityImpl, func()) {
 	err := json.Unmarshal(AccountKeyJSONA, &AccountKeyA)
 	test.AssertNotError(t, err, "Failed to unmarshal public JWK")
 	err = json.Unmarshal(AccountKeyJSONB, &AccountKeyB)
@@ -139,11 +141,29 @@ func initAuthorities(t *testing.T) (core.CertificateAuthority, *DummyValidationA
 	err = json.Unmarshal(ShortKeyJSON, &ShortKey)
 	test.AssertNotError(t, err, "Failed to unmarshall JWK")
 
-	sa, err := sa.NewSQLStorageAuthority("sqlite3", ":memory:")
-	test.AssertNotError(t, err, "Failed to create SA")
+	dbMap, err := sa.NewDbMap(dbConnStr)
+	if err != nil {
+		t.Fatalf("Failed to create dbMap: %s", err)
+	}
+	sa, err := sa.NewSQLStorageAuthority(dbMap)
+	if err != nil {
+		t.Fatalf("Failed to create SA: %s", err)
+	}
+
 	err = sa.CreateTablesIfNotExists()
 	if err != nil {
-		t.Fatalf("unable to create tables: %s", err)
+		t.Fatalf("Failed to create SA tables: %s", err)
+	}
+
+	if err = dbMap.TruncateTables(); err != nil {
+		t.Fatalf("Failed to truncate SA tables: %s", err)
+	}
+
+	cleanUp := func() {
+		if err = dbMap.TruncateTables(); err != nil {
+			t.Fatalf("Failed to truncate tables after the test: %s", err)
+		}
+		dbMap.Db.Close()
 	}
 
 	va := &DummyValidationAuthority{}
@@ -204,7 +224,7 @@ func initAuthorities(t *testing.T) (core.CertificateAuthority, *DummyValidationA
 	AuthzFinal.Expires = &exp
 	AuthzFinal.Challenges[0].Status = "valid"
 
-	return &ca, va, sa, &ra
+	return &ca, va, sa, &ra, cleanUp
 }
 
 func assertAuthzEqual(t *testing.T, a1, a2 core.Authorization) {
@@ -258,7 +278,8 @@ func TestValidateEmail(t *testing.T) {
 }
 
 func TestNewRegistration(t *testing.T) {
-	_, _, sa, ra := initAuthorities(t)
+	_, _, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	mailto, _ := core.ParseAcmeURL("mailto:foo@letsencrypt.org")
 	input := core.Registration{
 		Contact: []*core.AcmeURL{mailto},
@@ -282,7 +303,8 @@ func TestNewRegistration(t *testing.T) {
 }
 
 func TestNewRegistrationNoFieldOverwrite(t *testing.T) {
-	_, _, _, ra := initAuthorities(t)
+	_, _, _, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	mailto, _ := core.ParseAcmeURL("mailto:foo@letsencrypt.org")
 	input := core.Registration{
 		ID:        23,
@@ -298,17 +320,19 @@ func TestNewRegistrationNoFieldOverwrite(t *testing.T) {
 	// TODO: Enable this test case once we validate terms agreement.
 	//test.Assert(t, result.Agreement != "I agreed", "Agreement shouldn't be set with invalid URL")
 
+	id := result.ID
 	result2, err := ra.UpdateRegistration(result, core.Registration{
 		ID:  33,
 		Key: ShortKey,
 	})
 	test.AssertNotError(t, err, "Could not update registration")
-	test.Assert(t, result2.ID != 33, "ID shouldn't be overwritten.")
+	test.Assert(t, result2.ID != 33, fmt.Sprintf("ID shouldn't be overwritten. expected %d, got %d", id, result2.ID))
 	test.Assert(t, !core.KeyDigestEquals(result2.Key, ShortKey), "Key shouldn't be overwritten")
 }
 
 func TestNewRegistrationBadKey(t *testing.T) {
-	_, _, _, ra := initAuthorities(t)
+	_, _, _, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	mailto, _ := core.ParseAcmeURL("mailto:foo@letsencrypt.org")
 	input := core.Registration{
 		Contact: []*core.AcmeURL{mailto},
@@ -320,8 +344,8 @@ func TestNewRegistrationBadKey(t *testing.T) {
 }
 
 func TestNewAuthorization(t *testing.T) {
-	_, _, sa, ra := initAuthorities(t)
-
+	_, _, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	_, err := ra.NewAuthorization(AuthzRequest, 0)
 	test.AssertError(t, err, "Authorization cannot have registrationID == 0")
 
@@ -348,7 +372,8 @@ func TestNewAuthorization(t *testing.T) {
 }
 
 func TestUpdateAuthorization(t *testing.T) {
-	_, va, sa, ra := initAuthorities(t)
+	_, va, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	AuthzInitial, _ = sa.NewPendingAuthorization(AuthzInitial)
 	sa.UpdatePendingAuthorization(AuthzInitial)
 
@@ -371,7 +396,8 @@ func TestUpdateAuthorization(t *testing.T) {
 }
 
 func TestOnValidationUpdate(t *testing.T) {
-	_, _, sa, ra := initAuthorities(t)
+	_, _, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	AuthzUpdated, _ = sa.NewPendingAuthorization(AuthzUpdated)
 	sa.UpdatePendingAuthorization(AuthzUpdated)
 
@@ -393,7 +419,8 @@ func TestOnValidationUpdate(t *testing.T) {
 }
 
 func TestCertificateKeyNotEqualAccountKey(t *testing.T) {
-	_, _, sa, ra := initAuthorities(t)
+	_, _, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	authz := core.Authorization{}
 	authz, _ = sa.NewPendingAuthorization(authz)
 	authz.Identifier = core.AcmeIdentifier{
@@ -424,7 +451,8 @@ func TestCertificateKeyNotEqualAccountKey(t *testing.T) {
 }
 
 func TestAuthorizationRequired(t *testing.T) {
-	_, _, sa, ra := initAuthorities(t)
+	_, _, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	AuthzFinal.RegistrationID = 1
 	AuthzFinal, _ = sa.NewPendingAuthorization(AuthzFinal)
 	sa.UpdatePendingAuthorization(AuthzFinal)
@@ -443,7 +471,8 @@ func TestAuthorizationRequired(t *testing.T) {
 }
 
 func TestNewCertificate(t *testing.T) {
-	_, _, sa, ra := initAuthorities(t)
+	_, _, sa, ra, cleanUp := initAuthorities(t)
+	defer cleanUp()
 	AuthzFinal.RegistrationID = 1
 	AuthzFinal, _ = sa.NewPendingAuthorization(AuthzFinal)
 	sa.UpdatePendingAuthorization(AuthzFinal)

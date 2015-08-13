@@ -8,39 +8,14 @@ package ca
 import (
 	"testing"
 
-	_ "github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/mattn/go-sqlite3"
+	"github.com/letsencrypt/boulder/core"
+	"github.com/letsencrypt/boulder/sa"
 	"github.com/letsencrypt/boulder/test"
 )
 
-const badDriver = "nothing"
-const badFilename = "/doesnotexist/nofile"
-const sqliteDriver = "sqlite3"
-const sqliteName = ":memory:"
-
-func TestConstruction(t *testing.T) {
-	// Successful case
-	_, err := NewCertificateAuthorityDatabaseImpl(sqliteDriver, sqliteName)
-	test.AssertNotError(t, err, "Could not construct CA DB")
-
-	// Covers "sql.Open" error
-	_, err = NewCertificateAuthorityDatabaseImpl(badDriver, sqliteName)
-	test.AssertError(t, err, "Should have failed construction")
-
-	// Covers "db.Ping" error
-	_, err = NewCertificateAuthorityDatabaseImpl(sqliteDriver, badFilename)
-	test.AssertError(t, err, "Should have failed construction")
-}
-
 func TestGetSetSequenceOutsideTx(t *testing.T) {
-	cadb, err := NewCertificateAuthorityDatabaseImpl(sqliteDriver, sqliteName)
-	test.AssertNotError(t, err, "Could not construct CA DB")
-
-	err = cadb.CreateTablesIfNotExists()
-	test.AssertNotError(t, err, "Could not construct tables")
-
-	_, err = cadb.IncrementAndGetSerial(nil)
-	test.AssertError(t, err, "Not permitted")
-
+	cadb, cleanUp := caImpl(t)
+	defer cleanUp()
 	tx, err := cadb.Begin()
 	test.AssertNotError(t, err, "Could not begin")
 	tx.Commit()
@@ -55,12 +30,8 @@ func TestGetSetSequenceOutsideTx(t *testing.T) {
 }
 
 func TestGetSetSequenceNumber(t *testing.T) {
-	cadb, err := NewCertificateAuthorityDatabaseImpl(sqliteDriver, sqliteName)
-	test.AssertNotError(t, err, "Could not construct CA DB")
-
-	err = cadb.CreateTablesIfNotExists()
-	test.AssertNotError(t, err, "Could not construct tables")
-
+	cadb, cleanUp := caImpl(t)
+	defer cleanUp()
 	tx, err := cadb.Begin()
 	test.AssertNotError(t, err, "Could not begin")
 
@@ -73,4 +44,29 @@ func TestGetSetSequenceNumber(t *testing.T) {
 
 	err = tx.Commit()
 	test.AssertNotError(t, err, "Could not commit")
+}
+
+func caImpl(t *testing.T) (core.CertificateAuthorityDatabase, func()) {
+	dbMap, err := sa.NewDbMap(dbConnStr)
+	if err != nil {
+		t.Fatalf("Could not construct dbMap: %s", err)
+	}
+	cadb, err := NewCertificateAuthorityDatabaseImpl(dbMap)
+	if err != nil {
+		t.Fatalf("Could not construct CA DB: %s", err)
+	}
+	err = cadb.CreateTablesIfNotExists()
+	if err != nil {
+		t.Fatalf("Could not construct tables: %s", err)
+	}
+	// We specifically do not call TruncateTables before returning
+	// because of the weird insert in cadb.CreateTablesIfNotExists.
+
+	cleanUp := func() {
+		if err := dbMap.TruncateTables(); err != nil {
+			t.Fatalf("Could not truncate tables: %s", err)
+		}
+		dbMap.Db.Close()
+	}
+	return cadb, cleanUp
 }
