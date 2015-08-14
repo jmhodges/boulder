@@ -85,8 +85,12 @@ func (cadb *CertificateAuthorityDatabaseImpl) IncrementAndGetSerial(tx *gorp.Tra
 	}
 
 	row, ok := rowObj.(*SerialNumber)
-	if !ok {
+	if row == nil {
 		err = fmt.Errorf("No serial number found. This is a serious issue")
+		return
+	}
+	if !ok {
+		err = fmt.Errorf("Wrong type returned when fetching serial number")
 		return
 	}
 
