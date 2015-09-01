@@ -62,5 +62,5 @@ env:
     - RUN_MAKE=1 SKIP_UNIT_TESTS=1 SKIP_INTEGRATION_TESTS=1
 
 script:
-  - test "$RUN_MAKE" == "1" && make -j4 || true # Travis has 2 cores per build instance
+  - (test "$RUN_MAKE" == "1" || true) && make -j4 # Travis has 2 cores per build instance
   - bash test.sh
