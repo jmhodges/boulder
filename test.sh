@@ -103,12 +103,6 @@ function build_letsencrypt() {
 
 function run_unit_tests() {
   if [ "${TRAVIS}" == "true" ]; then
-    # deps are the imports of our packages under test that are not
-    # package in the stdlib. We can then install them with the race
-    # detector enabled to prevent our tests from having to build them
-    # multiple times.
-    deps=$(go list -f '{{ if not .Standard }}{{ .ImportPath }}{{ end }}' $(go list -f '{{ join .Imports "\n" }}' $TESTPATHS | sort | uniq))
-    go install -race $deps
     # Run each test by itself for Travis, so we can get coverage
     for path in ${TESTPATHS}; do
       dir=$(basename $path)
@@ -176,6 +170,15 @@ end_context #test/gofmt
 
 if [ "${TRAVIS}" == "true" ]; then
   ./test/create_db.sh || die "unable to create the boulder database with test/create_db.sh"
+
+  # deps are the imports of our packages under test that are not
+  # package in the stdlib. We can then install them with the race
+  # detector enabled to prevent our tests from having to build them
+  # multiple times.
+  all_shared_imports=$(go list -f '{{ join .Imports "\n" }}' $TESTPATHS | sort | uniq)
+  deps=$(go list -f '{{ if not .Standard }}{{ .ImportPath }}{{ end }}' ${all_shared_imports})
+  echo "go installing race detector enabled dependencies"
+  go install -v -race $deps
 fi
 
 #
