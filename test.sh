@@ -108,7 +108,7 @@ function run_unit_tests() {
     # are not stdlib packages. We can then install them with the race
     # detector enabled to prevent our individual `go test` calls from
     # building them multiple times.
-    all_shared_imports=$(go list -f '{{ join .Imports "\n" }}' $TESTPATHS | sort | uniq)
+    all_shared_imports=$(go list -f '{{ join .Imports "\n" }}{{join .TestImports "\n"}}' $TESTPATHS | sort | uniq)
     deps=$(go list -f '{{ if not .Standard }}{{ .ImportPath }}{{ end }}' ${all_shared_imports})
     echo "go installing race detector enabled dependencies"
     go install -v -race $deps
