@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/jmhodges/clock"
@@ -253,10 +254,10 @@ func (ca *CertificateAuthorityImpl) IssueCertificate(csr x509.CertificateRequest
 	hostNames := make([]string, len(csr.DNSNames))
 	copy(hostNames, csr.DNSNames)
 	if len(csr.Subject.CommonName) > 0 {
-		commonName = csr.Subject.CommonName
-		hostNames = append(hostNames, csr.Subject.CommonName)
+		commonName = strings.ToLower(csr.Subject.CommonName)
+		hostNames = append(hostNames, commonName)
 	} else if len(hostNames) > 0 {
-		commonName = hostNames[0]
+		commonName = strings.ToLower(hostNames[0])
 	} else {
 		err = core.MalformedRequestError("Cannot issue a certificate without a hostname.")
 		// AUDIT[ Certificate Requests ] 11917fa4-10ef-4e0d-9105-bacbe7836a3c

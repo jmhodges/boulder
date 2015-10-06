@@ -63,7 +63,7 @@ const (
 	whitelistedPartnerRegID = -1
 )
 
-var dnsLabelRegexp = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$")
+var dnsLabelRegexp = regexp.MustCompile("^[a-z0-9][a-z0-9-]{0,62}$")
 var punycodeRegexp = regexp.MustCompile("^xn--")
 
 func isDNSCharacter(ch byte) bool {
@@ -145,7 +145,6 @@ func (pa PolicyAuthorityImpl) WillingToIssue(id core.AcmeIdentifier, regID int64
 		}
 	}
 
-	domain = strings.ToLower(domain)
 	if len(domain) > 255 {
 		return SyntaxError{}
 	}

@@ -83,6 +83,9 @@ func TestWillingToIssue(t *testing.T) {
 		`zombocom`,
 		`localhost`,
 		`mail`,
+
+		// disallow capitalized letters for #927
+		`CapitalizedLetters.com`,
 	}
 
 	shouldBeNonPublic := []string{

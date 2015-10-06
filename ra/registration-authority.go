@@ -194,6 +194,7 @@ func (ra *RegistrationAuthorityImpl) NewAuthorization(request core.Authorization
 	}
 
 	identifier := request.Identifier
+	identifier.Value = strings.ToLower(identifier.Value)
 
 	// Check that the identifier is present and appropriate
 	if err = ra.PA.WillingToIssue(identifier, regID); err != nil {
