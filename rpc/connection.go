@@ -20,7 +20,7 @@ func newAMQPConnector(
 ) *amqpConnector {
 	return &amqpConnector{
 		queueName:        queueName,
-		makeChannel:      defaultChannelMaker{},
+		chMaker:          defaultChannelMaker{},
 		clk:              clock.Default(),
 		retryTimeoutBase: retryTimeoutBase,
 		retryTimeoutMax:  retryTimeoutMax,
@@ -43,7 +43,7 @@ func (d defaultChannelMaker) makeChannel(conf cmd.Config) (amqpChannel, error) {
 // and allows publishing via the channel onto an arbitrary queue.
 type amqpConnector struct {
 	mu               sync.RWMutex
-	makeChannel      channelMaker
+	chMaker          channelMaker
 	channel          amqpChannel
 	queueName        string
 	closeChan        chan *amqp.Error
@@ -69,7 +69,7 @@ func (ac *amqpConnector) closeChannel() chan *amqp.Error {
 // returning error if it fails. This is used at first startup, where we want to
 // fail fast if we can't connect.
 func (ac *amqpConnector) connect(config cmd.Config) error {
-	channel, err := ac.makeChannel.makeChannel(config)
+	channel, err := ac.chMaker.makeChannel(config)
 	if err != nil {
 		return fmt.Errorf("channel connect failed for %s: %s", ac.queueName, err)
 	}
@@ -107,16 +107,18 @@ func (ac *amqpConnector) reconnect(config cmd.Config, log blog.SyslogWriter) {
 // cancel cancels the AMQP channel. Used for graceful shutdowns.
 func (ac *amqpConnector) cancel() {
 	ac.mu.RLock()
-	defer ac.mu.RUnlock()
-	ac.channel.Cancel(consumerName, false)
+	channel := ac.channel
+	ac.mu.RUnlock()
+	channel.Cancel(consumerName, false)
 }
 
 // publish publishes a message onto the provided queue. We provide this wrapper
 // because it requires locking around the read of ac.channel.
 func (ac *amqpConnector) publish(queueName, corrId, expiration, replyTo, msgType string, body []byte) error {
 	ac.mu.RLock()
-	defer ac.mu.RUnlock()
-	return ac.channel.Publish(
+	channel := ac.channel
+	ac.mu.RUnlock()
+	return channel.Publish(
 		AmqpExchange,
 		queueName,
 		AmqpMandatory,

@@ -479,18 +479,15 @@ func (rpc *AmqpRPCServer) Stop() {
 // AmqpRPCCLient is an AMQP-RPC client that sends requests to a specific server
 // queue, and uses a dedicated response queue for responses.
 //
-// To implement specific functionality, using code uses the Dispatch()
+// To implement specific functionality, using code uses the DispatchSync()
 // method to send a method name and body, and get back a response. So
 // you end up with wrapper methods of the form:
 //
 // ```
 //   request = /* serialize request to []byte */
-//   response = <-AmqpRPCCLient.Dispatch(method, request)
+//   response = AmqpRPCCLient.Dispatch(method, request)
 //   return /* deserialized response */
 // ```
-//
-// Callers that don't care about the response can just call Dispatch()
-// and ignore the return value.
 //
 // DispatchSync will manage the channel for you, and also enforce a
 // timeout on the transaction.
@@ -577,7 +574,7 @@ func (rpc *AmqpRPCCLient) SetTimeout(ttl time.Duration) {
 	rpc.timeout = ttl
 }
 
-// Dispatch sends a body to the destination, and returns a response channel
+// dispatch sends a body to the destination, and returns a response channel
 // that can be used to monitor for responses, or discarded for one-shot
 // actions.
 func (rpc *AmqpRPCCLient) dispatch(method string, body []byte) chan []byte {

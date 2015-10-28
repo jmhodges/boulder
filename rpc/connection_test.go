@@ -26,7 +26,7 @@ func setup(t *testing.T) (*amqpConnector, *MockamqpChannel, func()) {
 
 	mockChannel := NewMockamqpChannel(mockCtrl)
 	ac := amqpConnector{
-		makeChannel: mockChannelMaker{
+		chMaker: mockChannelMaker{
 			channel: mockChannel,
 		},
 		queueName:        "fooqueue",
