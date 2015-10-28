@@ -23,10 +23,10 @@ import (
 )
 
 func setupWFE(c cmd.Config, logger *blog.AuditLogger, stats statsd.Statter) (rpc.RegistrationAuthorityClient, rpc.StorageAuthorityClient) {
-	raRPC, err := rpc.NewAmqpRPCClient("WFE->RA", c.AMQP.RA.Server, c, stats)
+	raRPC, err := rpc.NewAmqpRPCClient("WFE->RA", c.AMQP.RA.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
-	saRPC, err := rpc.NewAmqpRPCClient("WFE->SA", c.AMQP.SA.Server, c, stats)
+	saRPC, err := rpc.NewAmqpRPCClient("WFE->SA", c.AMQP.SA.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
 	rac, err := rpc.NewRegistrationAuthorityClient(raRPC)

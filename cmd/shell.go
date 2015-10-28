@@ -58,15 +58,16 @@ type Config struct {
 
 	// General
 	AMQP struct {
-		Server    string
-		Insecure  bool
-		RA        Queue
-		VA        Queue
-		SA        Queue
-		CA        Queue
-		OCSP      Queue
-		Publisher Queue
-		TLS       *TLSConfig
+		Server                 string
+		Insecure               bool
+		RA                     Queue
+		VA                     Queue
+		SA                     Queue
+		CA                     Queue
+		OCSP                   Queue
+		Publisher              Queue
+		TLS                    *TLSConfig
+		TimeoutCleanupInterval ConfigDuration
 	}
 
 	WFE struct {
@@ -475,9 +476,10 @@ type ConfigDuration struct {
 // presented to be deserialized as a ConfigDuration
 var ErrDurationMustBeString = errors.New("cannot JSON unmarshal something other than a string into a ConfigDuration")
 
-// UnmarshalJSON parses a string into a ConfigDuration using
-// time.ParseDuration.  If the input does not unmarshal as a
-// string, then UnmarshalJSON returns ErrDurationMustBeString.
+// UnmarshalJSON parses a string into a ConfigDuration using time.ParseDuration
+// with the special case that an empty string value will be returned as a zero
+// time.Duration. If the input does not unmarshal as a string, then
+// UnmarshalJSON returns ErrDurationMustBeString.
 func (d *ConfigDuration) UnmarshalJSON(b []byte) error {
 	s := ""
 	err := json.Unmarshal(b, &s)
@@ -487,8 +489,12 @@ func (d *ConfigDuration) UnmarshalJSON(b []byte) error {
 		}
 		return err
 	}
-	dd, err := time.ParseDuration(s)
-	d.Duration = dd
+	if s != "" {
+		var dd time.Duration
+		dd, err = time.ParseDuration(s)
+		d.Duration = dd
+	}
+
 	return err
 }
 

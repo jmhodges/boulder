@@ -45,13 +45,13 @@ func main() {
 
 		go cmd.ProfileCmd("CA", stats)
 
-		saRPC, err := rpc.NewAmqpRPCClient("CA->SA", c.AMQP.SA.Server, c, stats)
+		saRPC, err := rpc.NewAmqpRPCClient("CA->SA", c.AMQP.SA.Server, c, clock.Default(), stats)
 		cmd.FailOnError(err, "Unable to create RPC client")
 
 		sac, err := rpc.NewStorageAuthorityClient(saRPC)
 		cmd.FailOnError(err, "Failed to create SA client")
 
-		pubRPC, err := rpc.NewAmqpRPCClient("CA->Publisher", c.AMQP.Publisher.Server, c, stats)
+		pubRPC, err := rpc.NewAmqpRPCClient("CA->Publisher", c.AMQP.Publisher.Server, c, clock.Default(), stats)
 		cmd.FailOnError(err, "Unable to create RPC client")
 
 		pubc, err := rpc.NewPublisherClient(pubRPC)

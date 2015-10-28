@@ -245,7 +245,7 @@ func main() {
 		dbMap, err := sa.NewDbMap(c.Mailer.DBConnect)
 		cmd.FailOnError(err, "Could not connect to database")
 
-		saRPC, err := rpc.NewAmqpRPCClient("ExpirationMailer->SA", c.AMQP.SA.Server, c, stats)
+		saRPC, err := rpc.NewAmqpRPCClient("ExpirationMailer->SA", c.AMQP.SA.Server, c, clock.Default(), stats)
 		cmd.FailOnError(err, "Unable to create RPC client")
 
 		sac, err := rpc.NewStorageAuthorityClient(saRPC)

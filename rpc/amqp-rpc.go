@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
+	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/jmhodges/clock"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/streadway/amqp"
 
 	"github.com/letsencrypt/boulder/cmd"
@@ -495,17 +496,14 @@ type AmqpRPCCLient struct {
 	serverQueue string
 	clientQueue string
 	connection  *amqpConnector
+	respMap     *respChanMap
 	timeout     time.Duration
 	log         *blog.AuditLogger
-
-	mu      sync.RWMutex
-	pending map[string]chan []byte
-
-	stats statsd.Statter
+	stats       statsd.Statter
 }
 
 // NewAmqpRPCClient constructs an RPC client using AMQP
-func NewAmqpRPCClient(clientQueuePrefix, serverQueue string, c cmd.Config, stats statsd.Statter) (rpc *AmqpRPCCLient, err error) {
+func NewAmqpRPCClient(clientQueuePrefix, serverQueue string, c cmd.Config, clk clock.Clock, stats statsd.Statter) (rpc *AmqpRPCCLient, err error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, err
@@ -518,15 +516,22 @@ func NewAmqpRPCClient(clientQueuePrefix, serverQueue string, c cmd.Config, stats
 	}
 	clientQueue := fmt.Sprintf("%s.%s.%x", clientQueuePrefix, hostname, randID)
 
+	cleanupInterval := c.AMQP.TimeoutCleanupInterval.Duration
+	if cleanupInterval == 0 {
+		cleanupInterval = 1 * time.Second
+	}
+
 	rpc = &AmqpRPCCLient{
 		serverQueue: serverQueue,
 		clientQueue: clientQueue,
 		connection:  newAMQPConnector(clientQueue, 20*time.Millisecond, time.Minute),
-		pending:     make(map[string]chan []byte),
+		respMap:     newRespChanMap(clk, cleanupInterval),
 		timeout:     10 * time.Second,
 		log:         blog.GetAuditLogger(),
 		stats:       stats,
 	}
+
+	go spawnTimeoutCleaner(cleanupInterval, rpc.respMap)
 
 	err = rpc.connection.connect(c)
 	if err != nil {
@@ -539,9 +544,7 @@ func NewAmqpRPCClient(clientQueuePrefix, serverQueue string, c cmd.Config, stats
 			case msg, ok := <-rpc.connection.messages():
 				if ok {
 					corrID := msg.CorrelationId
-					rpc.mu.RLock()
-					responseChan, present := rpc.pending[corrID]
-					rpc.mu.RUnlock()
+					responseChan, present := rpc.respMap.get(corrID)
 
 					rpc.log.Debug(fmt.Sprintf(" [c<][%s] response %s(%s) [%s]", clientQueue, msg.Type, core.B64enc(msg.Body), corrID))
 					if !present {
@@ -550,9 +553,7 @@ func NewAmqpRPCClient(clientQueuePrefix, serverQueue string, c cmd.Config, stats
 						continue
 					}
 					responseChan <- msg.Body
-					rpc.mu.Lock()
-					delete(rpc.pending, corrID)
-					rpc.mu.Unlock()
+					rpc.respMap.del(corrID)
 				} else {
 					// chan has been closed by rpc.connection.Cancel
 					rpc.log.Info(fmt.Sprintf(" [!] Client reply channel closed: %s", rpc.clientQueue))
@@ -583,9 +584,7 @@ func (rpc *AmqpRPCCLient) dispatch(method string, body []byte) (string, chan []b
 	// be buffered to avoid deadlock
 	responseChan := make(chan []byte, 1)
 	corrID := core.NewToken()
-	rpc.mu.Lock()
-	rpc.pending[corrID] = responseChan
-	rpc.mu.Unlock()
+	rpc.respMap.add(corrID, responseChan)
 
 	// Send the request
 	rpc.log.Debug(fmt.Sprintf(" [c>][%s] requesting %s(%s) [%s]", rpc.clientQueue, method, core.B64enc(body), corrID))
@@ -628,9 +627,7 @@ func (rpc *AmqpRPCCLient) DispatchSync(method string, body []byte) (response []b
 		rpc.stats.TimingDuration(fmt.Sprintf("RPC.Latency.%s.Timeout", method), time.Since(callStarted), 1.0)
 		rpc.stats.Inc("RPC.Rate.Timeouts", 1, 1.0)
 		rpc.log.Warning(fmt.Sprintf(" [c!][%s] AMQP-RPC timeout [%s]", rpc.clientQueue, method))
-		rpc.mu.Lock()
-		delete(rpc.pending, corrID)
-		rpc.mu.Unlock()
+		rpc.respMap.markAsTimedOut(corrID)
 		err = errors.New("AMQP-RPC timeout")
 		return
 	}

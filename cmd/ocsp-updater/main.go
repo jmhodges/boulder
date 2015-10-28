@@ -463,19 +463,19 @@ func setupClients(c cmd.Config, stats statsd.Statter) (
 	core.Publisher,
 	core.StorageAuthority,
 ) {
-	caRPC, err := rpc.NewAmqpRPCClient("OCSP->CA", c.AMQP.CA.Server, c, stats)
+	caRPC, err := rpc.NewAmqpRPCClient("OCSP->CA", c.AMQP.CA.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
 	cac, err := rpc.NewCertificateAuthorityClient(caRPC)
 	cmd.FailOnError(err, "Unable to create CA client")
 
-	pubRPC, err := rpc.NewAmqpRPCClient("OCSP->Publisher", c.AMQP.Publisher.Server, c, stats)
+	pubRPC, err := rpc.NewAmqpRPCClient("OCSP->Publisher", c.AMQP.Publisher.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
 	pubc, err := rpc.NewPublisherClient(pubRPC)
 	cmd.FailOnError(err, "Unable to create Publisher client")
 
-	saRPC, err := rpc.NewAmqpRPCClient("OCSP->SA", c.AMQP.SA.Server, c, stats)
+	saRPC, err := rpc.NewAmqpRPCClient("OCSP->SA", c.AMQP.SA.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
 	sac, err := rpc.NewStorageAuthorityClient(saRPC)

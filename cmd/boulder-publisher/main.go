@@ -7,7 +7,7 @@ package main
 
 import (
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
-
+	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/jmhodges/clock"
 	"github.com/letsencrypt/boulder/cmd"
 	blog "github.com/letsencrypt/boulder/log"
 	"github.com/letsencrypt/boulder/publisher"
@@ -36,7 +36,7 @@ func main() {
 		go cmd.DebugServer(c.Publisher.DebugAddr)
 		go cmd.ProfileCmd("Publisher", stats)
 
-		saRPC, err := rpc.NewAmqpRPCClient("Publisher->SA", c.AMQP.SA.Server, c, stats)
+		saRPC, err := rpc.NewAmqpRPCClient("Publisher->SA", c.AMQP.SA.Server, c, clock.Default(), stats)
 		cmd.FailOnError(err, "Unable to create SA RPC client")
 
 		sac, err := rpc.NewStorageAuthorityClient(saRPC)

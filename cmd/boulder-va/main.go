@@ -62,7 +62,7 @@ func main() {
 		}
 		vai.UserAgent = c.VA.UserAgent
 
-		raRPC, err := rpc.NewAmqpRPCClient("VA->RA", c.AMQP.RA.Server, c, stats)
+		raRPC, err := rpc.NewAmqpRPCClient("VA->RA", c.AMQP.RA.Server, c, clock.Default(), stats)
 		cmd.FailOnError(err, "Unable to create RPC client")
 
 		rac, err := rpc.NewRegistrationAuthorityClient(raRPC)

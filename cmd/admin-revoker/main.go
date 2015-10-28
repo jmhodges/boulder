@@ -18,6 +18,7 @@ import (
 
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/jmhodges/clock"
 	gorp "github.com/letsencrypt/boulder/Godeps/_workspace/src/gopkg.in/gorp.v1"
 	"github.com/letsencrypt/boulder/cmd"
 	"github.com/letsencrypt/boulder/core"
@@ -48,7 +49,7 @@ func setupContext(context *cli.Context) (rpc.RegistrationAuthorityClient, *blog.
 	cmd.FailOnError(err, "Could not connect to Syslog")
 	blog.SetAuditLogger(auditlogger)
 
-	raRPC, err := rpc.NewAmqpRPCClient("AdminRevoker->RA", c.AMQP.RA.Server, c, stats)
+	raRPC, err := rpc.NewAmqpRPCClient("AdminRevoker->RA", c.AMQP.RA.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
 	rac, err := rpc.NewRegistrationAuthorityClient(raRPC)
@@ -57,7 +58,7 @@ func setupContext(context *cli.Context) (rpc.RegistrationAuthorityClient, *blog.
 	dbMap, err := sa.NewDbMap(c.Revoker.DBConnect)
 	cmd.FailOnError(err, "Couldn't setup database connection")
 
-	saRPC, err := rpc.NewAmqpRPCClient("AdminRevoker->SA", c.AMQP.SA.Server, c, stats)
+	saRPC, err := rpc.NewAmqpRPCClient("AdminRevoker->SA", c.AMQP.SA.Server, c, clock.Default(), stats)
 	cmd.FailOnError(err, "Unable to create RPC client")
 
 	sac, err := rpc.NewStorageAuthorityClient(saRPC)
