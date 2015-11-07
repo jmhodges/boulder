@@ -261,7 +261,7 @@ if [[ "$RUN" =~ "integration" ]] ; then
     build_letsencrypt
   fi
 
-  python test/integration-test.py --all
+  python test/integration-test.py --letsencrypt
   case $? in
     0) # Success
       update_status --state success
