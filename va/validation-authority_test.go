@@ -30,6 +30,7 @@ import (
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/jmhodges/clock"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/letsencrypt/go-jose"
+	"github.com/letsencrypt/boulder/probs"
 
 	"github.com/letsencrypt/boulder/core"
 	"github.com/letsencrypt/boulder/mocks"
@@ -302,7 +303,7 @@ func TestSimpleHttp(t *testing.T) {
 	invalidChall, err := va.validateSimpleHTTP(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Server's down; expected refusal. Where did we connect?")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 
 	va = NewValidationAuthorityImpl(&PortConfig{HTTPPort: goodPort}, nil, stats, clock.Default())
 	va.DNSResolver = &mocks.DNSResolver{}
@@ -318,7 +319,7 @@ func TestSimpleHttp(t *testing.T) {
 	invalidChall, err = va.validateSimpleHTTP(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Should have found a 404 for the challenge.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnauthorizedProblem)
 	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
 	log.Clear()
@@ -328,7 +329,7 @@ func TestSimpleHttp(t *testing.T) {
 	invalidChall, err = va.validateSimpleHTTP(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Should have found the wrong token value.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnauthorizedProblem)
 	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
 	log.Clear()
@@ -350,12 +351,12 @@ func TestSimpleHttp(t *testing.T) {
 	invalidChall, err = va.validateSimpleHTTP(ipIdentifier, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "IdentifierType IP shouldn't have worked.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.MalformedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.MalformedProblem)
 
 	invalidChall, err = va.validateSimpleHTTP(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "always.invalid"}, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Domain name is invalid.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnknownHostProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnknownHostProblem)
 
 	chall.Token = "wait-long"
 	started := time.Now()
@@ -366,7 +367,7 @@ func TestSimpleHttp(t *testing.T) {
 	test.Assert(t, (took < (time.Second * 10)), "HTTP connection didn't timeout after 5 seconds")
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Connection should've timed out")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 }
 
 // TODO(https://github.com/letsencrypt/boulder/issues/894): Remove this method
@@ -482,13 +483,13 @@ func TestDvsni(t *testing.T) {
 	}, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "IdentifierType IP shouldn't have worked.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.MalformedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.MalformedProblem)
 
 	log.Clear()
 	invalidChall, err = va.validateDvsni(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "always.invalid"}, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Domain name was supposed to be invalid.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnknownHostProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnknownHostProblem)
 
 	// Need to re-sign to get an unknown SNI (from the signature value)
 	chall.Token = core.NewToken()
@@ -508,7 +509,7 @@ func TestDvsni(t *testing.T) {
 	test.Assert(t, (took < (time.Second * 10)), "HTTP connection didn't timeout after 5 seconds")
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Connection should've timed out")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 	test.AssertEquals(t, len(log.GetAllMatching(`Resolved addresses for localhost \[using 127.0.0.1\]: \[127.0.0.1\]`)), 1)
 
 	// Take down DVSNI validation server and check that validation fails.
@@ -516,7 +517,7 @@ func TestDvsni(t *testing.T) {
 	invalidChall, err = va.validateDvsni(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Server's down; expected refusal. Where did we connect?")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 }
 
 func TestDVSNIWithTLSError(t *testing.T) {
@@ -532,7 +533,7 @@ func TestDVSNIWithTLSError(t *testing.T) {
 	invalidChall, err := va.validateDvsni(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "What cert was used?")
-	test.AssertEquals(t, invalidChall.Error.Type, core.TLSProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.TLSProblem)
 }
 
 func httpSrv(t *testing.T, token string) *httptest.Server {
@@ -677,7 +678,7 @@ func TestHttp(t *testing.T) {
 	invalidChall, err := va.validateHTTP01(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Server's down; expected refusal. Where did we connect?")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 
 	va = NewValidationAuthorityImpl(&PortConfig{HTTPPort: goodPort}, nil, stats, clock.Default())
 	va.DNSResolver = &mocks.DNSResolver{}
@@ -694,7 +695,7 @@ func TestHttp(t *testing.T) {
 	invalidChall, err = va.validateHTTP01(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Should have found a 404 for the challenge.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnauthorizedProblem)
 	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
 	log.Clear()
@@ -704,7 +705,7 @@ func TestHttp(t *testing.T) {
 	invalidChall, err = va.validateHTTP01(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Should have found the wrong token value.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnauthorizedProblem)
 	test.AssertEquals(t, len(log.GetAllMatching(`^\[AUDIT\] `)), 1)
 
 	log.Clear()
@@ -726,12 +727,12 @@ func TestHttp(t *testing.T) {
 	invalidChall, err = va.validateHTTP01(ipIdentifier, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "IdentifierType IP shouldn't have worked.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.MalformedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.MalformedProblem)
 
 	invalidChall, err = va.validateHTTP01(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "always.invalid"}, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Domain name is invalid.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnknownHostProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnknownHostProblem)
 
 	setChallengeToken(&chall, pathWaitLong)
 	started := time.Now()
@@ -742,7 +743,7 @@ func TestHttp(t *testing.T) {
 	test.Assert(t, (took < (time.Second * 10)), "HTTP connection didn't timeout after 5 seconds")
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Connection should've timed out")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 }
 
 func TestHTTPRedirectLookup(t *testing.T) {
@@ -864,13 +865,13 @@ func TestTLSSNI(t *testing.T) {
 	}, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "IdentifierType IP shouldn't have worked.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.MalformedProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.MalformedProblem)
 
 	log.Clear()
 	invalidChall, err = va.validateTLSSNI01(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "always.invalid"}, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Domain name was supposed to be invalid.")
-	test.AssertEquals(t, invalidChall.Error.Type, core.UnknownHostProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.UnknownHostProblem)
 
 	// Need to create a new authorized keys object to get an unknown SNI (from the signature value)
 	chall.Token = core.NewToken()
@@ -886,7 +887,7 @@ func TestTLSSNI(t *testing.T) {
 	test.Assert(t, (took < (time.Second * 10)), "HTTP connection didn't timeout after 5 seconds")
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Connection should've timed out")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 	test.AssertEquals(t, len(log.GetAllMatching(`Resolved addresses for localhost \[using 127.0.0.1\]: \[127.0.0.1\]`)), 1)
 
 	// Take down validation server and check that validation fails.
@@ -894,7 +895,7 @@ func TestTLSSNI(t *testing.T) {
 	invalidChall, err = va.validateTLSSNI01(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "Server's down; expected refusal. Where did we connect?")
-	test.AssertEquals(t, invalidChall.Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.ConnectionProblem)
 }
 
 func brokenTLSSrv() *httptest.Server {
@@ -921,7 +922,7 @@ func TestTLSError(t *testing.T) {
 	invalidChall, err := va.validateTLSSNI01(ident, chall)
 	test.AssertEquals(t, invalidChall.Status, core.StatusInvalid)
 	test.AssertError(t, err, "What cert was used?")
-	test.AssertEquals(t, invalidChall.Error.Type, core.TLSProblem)
+	test.AssertEquals(t, invalidChall.Error.Type, probs.TLSProblem)
 }
 
 func TestValidateHTTP(t *testing.T) {
@@ -1069,8 +1070,8 @@ func TestCAATimeout(t *testing.T) {
 	va.DNSResolver = &mocks.DNSResolver{}
 	va.IssuerDomain = "letsencrypt.org"
 	err := va.checkCAA(core.AcmeIdentifier{Type: core.IdentifierDNS, Value: "caa-timeout.com"}, 101)
-	if err.Type != core.ConnectionProblem {
-		t.Errorf("Expected timeout error type %s, got %s", core.ConnectionProblem, err.Type)
+	if err.Type != probs.ConnectionProblem {
+		t.Errorf("Expected timeout error type %s, got %s", probs.ConnectionProblem, err.Type)
 	}
 	expected := "DNS query timed out"
 	if err.Detail != expected {
@@ -1146,7 +1147,7 @@ func TestDNSValidationFailure(t *testing.T) {
 	t.Logf("Resulting Authz: %+v", authz)
 	test.AssertNotNil(t, mockRA.lastAuthz, "Should have gotten an authorization")
 	test.Assert(t, authz.Challenges[0].Status == core.StatusInvalid, "Should be invalid.")
-	test.AssertEquals(t, authz.Challenges[0].Error.Type, core.UnauthorizedProblem)
+	test.AssertEquals(t, authz.Challenges[0].Error.Type, probs.UnauthorizedProblem)
 }
 
 func TestDNSValidationInvalid(t *testing.T) {
@@ -1174,7 +1175,7 @@ func TestDNSValidationInvalid(t *testing.T) {
 
 	test.AssertNotNil(t, mockRA.lastAuthz, "Should have gotten an authorization")
 	test.Assert(t, authz.Challenges[0].Status == core.StatusInvalid, "Should be invalid.")
-	test.AssertEquals(t, authz.Challenges[0].Error.Type, core.MalformedProblem)
+	test.AssertEquals(t, authz.Challenges[0].Error.Type, probs.MalformedProblem)
 }
 
 func TestDNSValidationNotSane(t *testing.T) {
@@ -1204,7 +1205,7 @@ func TestDNSValidationNotSane(t *testing.T) {
 	for i := 0; i < len(authz.Challenges); i++ {
 		va.validate(authz, i)
 		test.AssertEquals(t, authz.Challenges[i].Status, core.StatusInvalid)
-		test.AssertEquals(t, authz.Challenges[i].Error.Type, core.MalformedProblem)
+		test.AssertEquals(t, authz.Challenges[i].Error.Type, probs.MalformedProblem)
 	}
 }
 
@@ -1231,7 +1232,7 @@ func TestDNSValidationServFail(t *testing.T) {
 
 	test.AssertNotNil(t, mockRA.lastAuthz, "Should have gotten an authorization")
 	test.Assert(t, authz.Challenges[0].Status == core.StatusInvalid, "Should be invalid.")
-	test.AssertEquals(t, authz.Challenges[0].Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, authz.Challenges[0].Error.Type, probs.ConnectionProblem)
 }
 
 func TestDNSValidationNoServer(t *testing.T) {
@@ -1253,7 +1254,7 @@ func TestDNSValidationNoServer(t *testing.T) {
 
 	test.AssertNotNil(t, mockRA.lastAuthz, "Should have gotten an authorization")
 	test.Assert(t, authz.Challenges[0].Status == core.StatusInvalid, "Should be invalid.")
-	test.AssertEquals(t, authz.Challenges[0].Error.Type, core.ConnectionProblem)
+	test.AssertEquals(t, authz.Challenges[0].Error.Type, probs.ConnectionProblem)
 }
 
 // TestDNSValidationLive is an integration test, depending on
