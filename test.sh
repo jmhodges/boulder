@@ -145,7 +145,8 @@ function run_unit_tests() {
     # Run each test by itself for Travis, so we can get coverage
     for path in ${TESTPATHS}; do
       dir=$(basename $path)
-      run GODEBUG=invalidptr=1 go test -race -cover -coverprofile=${dir}.coverprofile ${path}
+      export GODEBUG=invalidptr=1
+      run go test -race -cover -coverprofile=${dir}.coverprofile ${path}
     done
 
     # Gather all the coverprofiles
