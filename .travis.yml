@@ -56,4 +56,3 @@ env:
 
 script:
   - bash test.sh
-

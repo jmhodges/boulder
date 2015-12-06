@@ -44,7 +44,7 @@ def install(race_detection):
 
 def run(binary, race_detection, config=default_config):
     # Note: Must use exec here so that killing this process kills the command.
-    cmd = """GORACE="halt_on_error=1" exec ./bin/%s --config %s""" % (binary, config)
+    cmd = """GORACE="halt_on_error=1" GODEBUG="invalidptr=1" exec ./bin/%s --config %s""" % (binary, config)
     p = subprocess.Popen(cmd, shell=True)
     p.cmd = cmd
     print('started %s with pid %d' % (p.cmd, p.pid))
