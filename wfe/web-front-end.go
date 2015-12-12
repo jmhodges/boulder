@@ -318,7 +318,7 @@ func (wfe *WebFrontEndImpl) verifyPOST(logEvent *requestEvent, request *http.Req
 	if request.Body == nil {
 		wfe.stats.Inc("WFE.Errors.NoPOSTBody", 1, 1.0)
 		logEvent.AddError("no body on POST")
-		return nil, nil, reg, probs.Malformed("Unable to read/verify body :: No body on POST")
+		return nil, nil, reg, probs.Malformed("No body on POST")
 	}
 
 	bodyBytes, err := ioutil.ReadAll(request.Body)
@@ -334,7 +334,7 @@ func (wfe *WebFrontEndImpl) verifyPOST(logEvent *requestEvent, request *http.Req
 	if err != nil {
 		wfe.stats.Inc("WFE.Errors.UnableToParseJWS", 1, 1.0)
 		logEvent.AddError("could not JSON parse body into JWS: %s", err)
-		return nil, nil, reg, probs.Malformed("Unable to read/verify body :: Parse error reading JWS")
+		return nil, nil, reg, probs.Malformed("Parse error reading JWS")
 	}
 
 	// Verify JWS
@@ -405,7 +405,7 @@ func (wfe *WebFrontEndImpl) verifyPOST(logEvent *requestEvent, request *http.Req
 			n = 100
 		}
 		logEvent.AddError("verification of JWS with the JWK failed: %v; body: %s", err, body[:n])
-		return nil, nil, reg, probs.Malformed("Unable to read/verify body :: JWS verification error")
+		return nil, nil, reg, probs.Malformed("JWS verification error")
 	}
 
 	// Check that the request has a known anti-replay nonce
@@ -413,11 +413,11 @@ func (wfe *WebFrontEndImpl) verifyPOST(logEvent *requestEvent, request *http.Req
 	if err != nil || len(nonce) == 0 {
 		wfe.stats.Inc("WFE.Errors.JWSMissingNonce", 1, 1.0)
 		logEvent.AddError("JWS is missing an anti-replay nonce")
-		return nil, nil, reg, probs.BadNonce("Unable to read/verify body :: JWS has no anti-replay nonce")
+		return nil, nil, reg, probs.BadNonce("JWS has no anti-replay nonce")
 	} else if !wfe.nonceService.Valid(nonce) {
 		wfe.stats.Inc("WFE.Errors.JWSInvalidNonce", 1, 1.0)
 		logEvent.AddError("JWS has an invalid anti-replay nonce")
-		return nil, nil, reg, probs.BadNonce("Unable to read/verify body :: JWS has invalid anti-replay nonce")
+		return nil, nil, reg, probs.BadNonce("JWS has invalid anti-replay nonce")
 	}
 
 	// Check that the "resource" field is present and has the correct value
@@ -428,16 +428,16 @@ func (wfe *WebFrontEndImpl) verifyPOST(logEvent *requestEvent, request *http.Req
 	if err != nil {
 		wfe.stats.Inc("WFE.Errors.UnparsableJWSPayload", 1, 1.0)
 		logEvent.AddError("unable to JSON parse resource from JWS payload: %s", err)
-		return nil, nil, reg, probs.Malformed("Unable to read/verify body :: Request payload did not parse as JSON")
+		return nil, nil, reg, probs.Malformed("Request payload did not parse as JSON")
 	}
 	if parsedRequest.Resource == "" {
 		wfe.stats.Inc("WFE.Errors.NoResourceInJWSPayload", 1, 1.0)
 		logEvent.AddError("JWS request payload does not specify a resource")
-		return nil, nil, reg, probs.Malformed("Unable to read/verify body :: Request payload does not specify a resource")
+		return nil, nil, reg, probs.Malformed("Request payload does not specify a resource")
 	} else if resource != core.AcmeResource(parsedRequest.Resource) {
 		wfe.stats.Inc("WFE.Errors.MismatchedResourceInJWSPayload", 1, 1.0)
 		logEvent.AddError("JWS request payload does not match resource")
-		return nil, nil, reg, probs.Malformed("Unable to read/verify body :: JWS resource payload does not match the HTTP resource: %s != %s", parsedRequest.Resource, resource)
+		return nil, nil, reg, probs.Malformed("JWS resource payload does not match the HTTP resource: %s != %s", parsedRequest.Resource, resource)
 	}
 
 	return []byte(payload), key, reg, nil
