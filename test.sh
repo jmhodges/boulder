@@ -179,7 +179,9 @@ fi
 #
 if [[ "$RUN" =~ "lint" ]] ; then
   start_context "lint"
-  run_and_comment golint -min_confidence=0.81 ./...
+  lint_ignored="github.com/letsencrypt/boulder/mock_statsd"
+  pkgs=$(go list ./... | grep -v ${lint_ignored})
+  run_and_comment golint -min_confidence=0.81 $pkgs
   end_context #lint
 fi
 
