@@ -42,6 +42,9 @@ func TestScopedStatsStatsd(t *testing.T) {
 	s := stats.NewScope("foobar")
 	statter.EXPECT().Inc("fake.foobar.counter", 3, 1.0).Return(nil)
 	s.Inc("counter", 3)
+	ss := stats.NewScope("another", "level")
+	statter.EXPECT().Inc("fake.foobar.counter", 4, 1.0).Return(nil)
+	s.Inc("counter", 4)
 
 	if stats.Scope() != "fake" {
 		t.Errorf(`expected "fake", got %#v`, stats.Scope())
@@ -49,5 +52,7 @@ func TestScopedStatsStatsd(t *testing.T) {
 	if s.Scope() != "fake.foobar" {
 		t.Errorf(`expected "fake.foobar", got %#v`, s.Scope())
 	}
-
+	if ss.Scope() != "fake.another.level" {
+		t.Errorf(`expected "fake.foobar", got %#v`, s.Scope())
+	}
 }

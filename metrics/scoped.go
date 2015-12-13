@@ -8,13 +8,14 @@
 package metrics
 
 import (
+	"strings"
 	"time"
 
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
 )
 
 type Scoped interface {
-	NewScope(prefix string) Scoped
+	NewScope(prefix ...string) Scoped
 	Scope() string
 
 	Inc(stat string, value int64) error
@@ -46,7 +47,8 @@ func NewNoopScoped() Scoped {
 	return NewScopedFromStatsd("noop", c)
 }
 
-func (s *ScopedStatsd) NewScope(scope string) Scoped {
+func (s *ScopedStatsd) NewScope(scopes ...string) Scoped {
+	scope := strings.Join(scopes, ".")
 	return NewScopedFromStatsd(s.prefix+scope, s.statter)
 }
 
