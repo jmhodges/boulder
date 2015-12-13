@@ -43,7 +43,7 @@ func NewStatsFromStatsd(scope string, statter statsd.Statter) *ScopedStatsStatsd
 }
 
 func (s *ScopedStatsStatsd) NewScope(scope string) ScopedStats {
-	return NewStatsFromStatsd(s.prefix+"."+scope, s.statter)
+	return NewStatsFromStatsd(s.prefix+scope, s.statter)
 }
 
 func (s *ScopedStatsStatsd) Scope() string {
@@ -60,7 +60,7 @@ func (s *ScopedStatsStatsd) Gauge(stat string, value int64) error {
 	return s.statter.Gauge(s.prefix+stat, value, 1.0)
 }
 func (s *ScopedStatsStatsd) GaugeDelta(stat string, value int64) error {
-	return s.statter.Gauge(s.prefix+stat, value, 1.0)
+	return s.statter.GaugeDelta(s.prefix+stat, value, 1.0)
 }
 func (s *ScopedStatsStatsd) Timing(stat string, delta int64) error {
 	return s.statter.Timing(s.prefix+stat, delta, 1.0)
