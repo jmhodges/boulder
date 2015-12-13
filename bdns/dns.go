@@ -115,11 +115,11 @@ var (
 
 // DNSResolver defines methods used for DNS resolution
 type DNSResolver interface {
-	ExchangeOne(string, uint16) (*dns.Msg, time.Duration, error)
-	LookupTXT(string) ([]string, time.Duration, error)
-	LookupHost(string) ([]net.IP, time.Duration, error)
-	LookupCAA(string) ([]*dns.CAA, time.Duration, error)
-	LookupMX(string) ([]string, time.Duration, error)
+	ExchangeOne(string, uint16) (*dns.Msg, error)
+	LookupTXT(string) ([]string, error)
+	LookupHost(string) ([]net.IP, error)
+	LookupCAA(string) ([]*dns.CAA, error)
+	LookupMX(string) ([]string, error)
 }
 
 // DNSResolverImpl represents a client that talks to an external resolver
@@ -131,7 +131,7 @@ type DNSResolverImpl struct {
 
 // NewDNSResolverImpl constructs a new DNS resolver object that utilizes the
 // provided list of DNS servers for resolution.
-func NewDNSResolverImpl(readTimeout time.Duration, servers []string) *DNSResolverImpl {
+func NewDNSResolverImpl(readTimeout time.Duration, stats metrics.ScopedStats, servers []string) *DNSResolverImpl {
 	dnsClient := new(dns.Client)
 
 	// Set timeout for underlying net.Conn
