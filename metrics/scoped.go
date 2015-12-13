@@ -15,7 +15,7 @@ import (
 )
 
 type Scoped interface {
-	NewScope(prefix ...string) Scoped
+	NewScope(scopes ...string) Scoped
 	Scope() string
 
 	Inc(stat string, value int64) error
@@ -36,9 +36,9 @@ type ScopedStatsd struct {
 
 var _ Scoped = &ScopedStatsd{}
 
-func NewScopedFromStatsd(scope string, statter statsd.Statter) *ScopedStatsd {
+func NewScopedFromStatsd(statter statsd.Statter, scopes ...string) *ScopedStatsd {
 	return &ScopedStatsd{
-		prefix:  scope + ".",
+		prefix:  strings.Join(scopes, ".") + ".",
 		statter: statter,
 	}
 }
