@@ -32,11 +32,6 @@ import (
 type DNSResolver struct {
 }
 
-// ExchangeOne is a mock
-func (mock *DNSResolver) ExchangeOne(hostname string, qt uint16) (rsp *dns.Msg, rtt time.Duration, err error) {
-	return nil, 0, nil
-}
-
 // LookupTXT is a mock
 func (mock *DNSResolver) LookupTXT(hostname string) ([]string, time.Duration, error) {
 	if hostname == "_acme-challenge.servfail.com" {
