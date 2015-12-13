@@ -145,7 +145,7 @@ func TestMain(m *testing.M) {
 
 func newTestStats() metrics.Scoped {
 	c, _ := statsd.NewNoopClient()
-	return metrics.NewScopedFromStatsd("fakesvc", c)
+	return metrics.NewScopedFromStatsd(c, "fakesvc")
 }
 
 var testStats = newTestStats()

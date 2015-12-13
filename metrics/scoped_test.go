@@ -17,7 +17,7 @@ func TestScopedStatsStatsd(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	statter := mock_statsd.NewMockStatter(ctrl)
-	stats := NewScopedFromStatsd("fake", statter)
+	stats := NewScopedFromStatsd(statter, "fake")
 	statter.EXPECT().Inc("fake.counter", 2, 1.0).Return(nil)
 	stats.Inc("counter", 2)
 
@@ -55,4 +55,9 @@ func TestScopedStatsStatsd(t *testing.T) {
 	if ss.Scope() != "fake.another.level" {
 		t.Errorf(`expected "fake.foobar", got %#v`, s.Scope())
 	}
+
+	twoScope := NewScopedFromStatsd(statter, "fake", "bang")
+	statter.EXPECT().Inc("fake.bang.counter", 7, 1.0).Return(nil)
+	twoScope.Inc("counter", 7)
+
 }

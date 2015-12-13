@@ -44,12 +44,12 @@ func NewScopedFromStatsd(statter statsd.Statter, scopes ...string) *ScopedStatsd
 }
 func NewNoopScoped() Scoped {
 	c, _ := statsd.NewNoopClient()
-	return NewScopedFromStatsd("noop", c)
+	return NewScopedFromStatsd(c, "noop")
 }
 
 func (s *ScopedStatsd) NewScope(scopes ...string) Scoped {
 	scope := strings.Join(scopes, ".")
-	return NewScopedFromStatsd(s.prefix+scope, s.statter)
+	return NewScopedFromStatsd(s.statter, s.prefix+scope)
 }
 
 func (s *ScopedStatsd) Scope() string {

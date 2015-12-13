@@ -46,7 +46,7 @@ func main() {
 		vai := va.NewValidationAuthorityImpl(pc, sbc, stats, clock.Default())
 		dnsTimeout, err := time.ParseDuration(c.Common.DNSTimeout)
 		cmd.FailOnError(err, "Couldn't parse DNS timeout")
-		scoped := metrics.NewScopedFromStatsd("DNS", stats)
+		scoped := metrics.NewScopedFromStatsd(stats, "VA", "DNS")
 		if !c.Common.DNSAllowLoopbackAddresses {
 			vai.DNSResolver = bdns.NewDNSResolverImpl(dnsTimeout, []string{c.Common.DNSResolver}, scoped)
 		} else {

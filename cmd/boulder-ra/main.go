@@ -63,7 +63,7 @@ func main() {
 		rai.PA = pa
 		raDNSTimeout, err := time.ParseDuration(c.Common.DNSTimeout)
 		cmd.FailOnError(err, "Couldn't parse RA DNS timeout")
-		scoped := metrics.NewScopedFromStatsd("DNS", stats)
+		scoped := metrics.NewScopedFromStatsd(stats, "RA", "DNS")
 		if !c.Common.DNSAllowLoopbackAddresses {
 			rai.DNSResolver = bdns.NewDNSResolverImpl(raDNSTimeout, []string{c.Common.DNSResolver}, scoped)
 		} else {
