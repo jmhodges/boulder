@@ -41,6 +41,10 @@ func NewScopedFromStatsd(scope string, statter statsd.Statter) *ScopedStatsd {
 		statter: statter,
 	}
 }
+func NewNoopScoped() Scoped {
+	c, _ := statsd.NewNoopClient()
+	return NewScopedFromStatsd("noop", c)
+}
 
 func (s *ScopedStatsd) NewScope(scope string) Scoped {
 	return NewScopedFromStatsd(s.prefix+scope, s.statter)
