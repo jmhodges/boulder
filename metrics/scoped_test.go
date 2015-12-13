@@ -17,7 +17,7 @@ func TestScopedStatsStatsd(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	statter := mock_statsd.NewMockStatter(ctrl)
-	stats := NewStatsFromStatsd("fake", statter)
+	stats := NewScopedFromStatsd("fake", statter)
 	statter.EXPECT().Inc("fake.counter", 2, 1.0).Return(nil)
 	stats.Inc("counter", 2)
 

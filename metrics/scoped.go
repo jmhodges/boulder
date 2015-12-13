@@ -13,8 +13,8 @@ import (
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/cactus/go-statsd-client/statsd"
 )
 
-type ScopedStats interface {
-	NewScope(prefix string) ScopedStats
+type Scoped interface {
+	NewScope(prefix string) Scoped
 	Scope() string
 
 	Inc(stat string, value int64) error
@@ -28,52 +28,52 @@ type ScopedStats interface {
 	Raw(stat string, value string) error
 }
 
-type ScopedStatsStatsd struct {
+type ScopedStatsd struct {
 	prefix  string
 	statter statsd.Statter
 }
 
-var _ ScopedStats = &ScopedStatsStatsd{}
+var _ Scoped = &ScopedStatsd{}
 
-func NewStatsFromStatsd(scope string, statter statsd.Statter) *ScopedStatsStatsd {
-	return &ScopedStatsStatsd{
+func NewScopedFromStatsd(scope string, statter statsd.Statter) *ScopedStatsd {
+	return &ScopedStatsd{
 		prefix:  scope + ".",
 		statter: statter,
 	}
 }
 
-func (s *ScopedStatsStatsd) NewScope(scope string) ScopedStats {
-	return NewStatsFromStatsd(s.prefix+scope, s.statter)
+func (s *ScopedStatsd) NewScope(scope string) Scoped {
+	return NewScopedFromStatsd(s.prefix+scope, s.statter)
 }
 
-func (s *ScopedStatsStatsd) Scope() string {
+func (s *ScopedStatsd) Scope() string {
 	return s.prefix[:len(s.prefix)-1]
 }
 
-func (s *ScopedStatsStatsd) Inc(stat string, value int64) error {
+func (s *ScopedStatsd) Inc(stat string, value int64) error {
 	return s.statter.Inc(s.prefix+stat, value, 1.0)
 }
-func (s *ScopedStatsStatsd) Dec(stat string, value int64) error {
+func (s *ScopedStatsd) Dec(stat string, value int64) error {
 	return s.statter.Dec(s.prefix+stat, value, 1.0)
 }
-func (s *ScopedStatsStatsd) Gauge(stat string, value int64) error {
+func (s *ScopedStatsd) Gauge(stat string, value int64) error {
 	return s.statter.Gauge(s.prefix+stat, value, 1.0)
 }
-func (s *ScopedStatsStatsd) GaugeDelta(stat string, value int64) error {
+func (s *ScopedStatsd) GaugeDelta(stat string, value int64) error {
 	return s.statter.GaugeDelta(s.prefix+stat, value, 1.0)
 }
-func (s *ScopedStatsStatsd) Timing(stat string, delta int64) error {
+func (s *ScopedStatsd) Timing(stat string, delta int64) error {
 	return s.statter.Timing(s.prefix+stat, delta, 1.0)
 }
-func (s *ScopedStatsStatsd) TimingDuration(stat string, delta time.Duration) error {
+func (s *ScopedStatsd) TimingDuration(stat string, delta time.Duration) error {
 	return s.statter.TimingDuration(s.prefix+stat, delta, 1.0)
 }
-func (s *ScopedStatsStatsd) Set(stat string, value string) error {
+func (s *ScopedStatsd) Set(stat string, value string) error {
 	return s.statter.Set(s.prefix+stat, value, 1.0)
 }
-func (s *ScopedStatsStatsd) SetInt(stat string, value int64) error {
+func (s *ScopedStatsd) SetInt(stat string, value int64) error {
 	return s.statter.SetInt(s.prefix+stat, value, 1.0)
 }
-func (s *ScopedStatsStatsd) Raw(stat string, value string) error {
+func (s *ScopedStatsd) Raw(stat string, value string) error {
 	return s.statter.Raw(s.prefix+stat, value, 1.0)
 }
