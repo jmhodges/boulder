@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/jmhodges/clock"
 	"github.com/letsencrypt/boulder/Godeps/_workspace/src/github.com/miekg/dns"
+	"github.com/letsencrypt/boulder/Godeps/_workspace/src/golang.org/x/net/context"
 	"github.com/letsencrypt/boulder/metrics"
 )
 
@@ -114,19 +116,21 @@ var (
 	}
 )
 
-// DNSResolver defines methods used for DNS resolution
+// DNSResolver queries for DNS records
 type DNSResolver interface {
-	LookupTXT(string) ([]string, error)
-	LookupHost(string) ([]net.IP, error)
-	LookupCAA(string) ([]*dns.CAA, error)
-	LookupMX(string) ([]string, error)
+	LookupTXT(context.Context, string) ([]string, error)
+	LookupHost(context.Context, string) ([]net.IP, error)
+	LookupCAA(context.Context, string) ([]*dns.CAA, error)
+	LookupMX(context.Context, string) ([]string, error)
 }
 
 // DNSResolverImpl represents a client that talks to an external resolver
 type DNSResolverImpl struct {
-	DNSClient                *dns.Client
+	DNSClient                exchanger
 	Servers                  []string
 	allowRestrictedAddresses bool
+	maxTries                 int
+	clk                      clock.Clock
 	stats                    metrics.Scope
 	txtStats                 metrics.Scope
 	aStats                   metrics.Scope
@@ -136,9 +140,14 @@ type DNSResolverImpl struct {
 
 var _ DNSResolver = &DNSResolverImpl{}
 
+type exchanger interface {
+	Exchange(m *dns.Msg, a string) (*dns.Msg, time.Duration, error)
+}
+
 // NewDNSResolverImpl constructs a new DNS resolver object that utilizes the
 // provided list of DNS servers for resolution.
-func NewDNSResolverImpl(readTimeout time.Duration, servers []string, stats metrics.Scope) *DNSResolverImpl {
+func NewDNSResolverImpl(readTimeout time.Duration, servers []string, stats metrics.Scope, clk clock.Clock, maxTries int) *DNSResolverImpl {
+	// TODO(jmhodges): make constructor use an Option func pattern
 	dnsClient := new(dns.Client)
 
 	// Set timeout for underlying net.Conn
@@ -149,19 +158,21 @@ func NewDNSResolverImpl(readTimeout time.Duration, servers []string, stats metri
 		DNSClient:                dnsClient,
 		Servers:                  servers,
 		allowRestrictedAddresses: false,
-		stats:    stats,
-		txtStats: stats.NewScope("TXT"),
-		aStats:   stats.NewScope("A"),
-		caaStats: stats.NewScope("CAA"),
-		mxStats:  stats.NewScope("MX"),
+		maxTries:                 maxTries,
+		clk:                      clk,
+		stats:                    stats,
+		txtStats:                 stats.NewScope("TXT"),
+		aStats:                   stats.NewScope("A"),
+		caaStats:                 stats.NewScope("CAA"),
+		mxStats:                  stats.NewScope("MX"),
 	}
 }
 
 // NewTestDNSResolverImpl constructs a new DNS resolver object that utilizes the
 // provided list of DNS servers for resolution and will allow loopback addresses.
 // This constructor should *only* be called from tests (unit or integration).
-func NewTestDNSResolverImpl(readTimeout time.Duration, servers []string, stats metrics.Scope) *DNSResolverImpl {
-	resolver := NewDNSResolverImpl(readTimeout, servers, stats)
+func NewTestDNSResolverImpl(readTimeout time.Duration, servers []string, stats metrics.Scope, clk clock.Clock, maxTries int) *DNSResolverImpl {
+	resolver := NewDNSResolverImpl(readTimeout, servers, stats, clk, maxTries)
 	resolver.allowRestrictedAddresses = true
 	return resolver
 }
@@ -170,7 +181,7 @@ func NewTestDNSResolverImpl(readTimeout time.Duration, servers []string, stats m
 // out of the server list, returning the response, time, and error (if any).
 // This method sets the DNSSEC OK bit on the message to true before sending
 // it to the resolver in case validation isn't the resolvers default behaviour.
-func (dnsResolver *DNSResolverImpl) exchangeOne(hostname string, qtype uint16, msgStats metrics.Scope) (rsp *dns.Msg, err error) {
+func (dnsResolver *DNSResolverImpl) exchangeOne(ctx context.Context, hostname string, qtype uint16, msgStats metrics.Scope) (*dns.Msg, error) {
 	m := new(dns.Msg)
 	// Set question type
 	m.SetQuestion(dns.Fqdn(hostname), qtype)
@@ -178,8 +189,7 @@ func (dnsResolver *DNSResolverImpl) exchangeOne(hostname string, qtype uint16, m
 	m.SetEdns0(4096, true)
 
 	if len(dnsResolver.Servers) < 1 {
-		err = fmt.Errorf("Not configured with at least one DNS Server")
-		return
+		return nil, fmt.Errorf("Not configured with at least one DNS Server")
 	}
 
 	dnsResolver.stats.Inc("Rate", 1)
@@ -187,21 +197,24 @@ func (dnsResolver *DNSResolverImpl) exchangeOne(hostname string, qtype uint16, m
 	// Randomly pick a server
 	chosenServer := dnsResolver.Servers[rand.Intn(len(dnsResolver.Servers))]
 
-	msg, rtt, err := dnsResolver.DNSClient.Exchange(m, chosenServer)
-	msgStats.TimingDuration("RTT", rtt)
-	if err == nil {
-		msgStats.Inc("Successes", 1)
-	} else {
-		msgStats.Inc("Errors", 1)
-	}
-	return msg, err
+	var rsp *dns.Msg
+	err := idempotentNetworkCall(ctx, msgStats, dnsResolver.maxTries, dnsResolver.clk, func() error {
+		var rtt time.Duration
+		var err error
+		rsp, rtt, err = dnsResolver.DNSClient.Exchange(m, chosenServer)
+		msgStats.TimingDuration("RTT", rtt)
+		return err
+	})
+	return rsp, err
 }
 
-// LookupTXT sends a DNS query to find all TXT records associated with
-// the provided hostname.
-func (dnsResolver *DNSResolverImpl) LookupTXT(hostname string) ([]string, error) {
+// LookupTXT sends a DNS query to find all TXT records associated with the
+// provided hostname. It will retry requests the case of temporary network
+// errors. It can return net package, context.Canceled, and
+// context.DeadlineExceeded errors.
+func (dnsResolver *DNSResolverImpl) LookupTXT(ctx context.Context, hostname string) ([]string, error) {
 	var txt []string
-	r, err := dnsResolver.exchangeOne(hostname, dns.TypeTXT, dnsResolver.txtStats)
+	r, err := dnsResolver.exchangeOne(ctx, hostname, dns.TypeTXT, dnsResolver.txtStats)
 	if err != nil {
 		return nil, err
 	}
@@ -230,13 +243,15 @@ func isPrivateV4(ip net.IP) bool {
 	return false
 }
 
-// LookupHost sends a DNS query to find all A records associated with the provided
-// hostname. This method assumes that the external resolver will chase CNAME/DNAME
-// aliases and return relevant A records.
-func (dnsResolver *DNSResolverImpl) LookupHost(hostname string) ([]net.IP, error) {
+// LookupHost sends a DNS query to find all A records associated with the
+// provided hostname. This method assumes that the external resolver will chase
+// CNAME/DNAME aliases and return relevant A records.  It will retry requests
+// the case of temporary network errors. It can return net package,
+// context.Canceled, and context.DeadlineExceeded errors.
+func (dnsResolver *DNSResolverImpl) LookupHost(ctx context.Context, hostname string) ([]net.IP, error) {
 	var addrs []net.IP
 
-	r, err := dnsResolver.exchangeOne(hostname, dns.TypeA, dnsResolver.aStats)
+	r, err := dnsResolver.exchangeOne(ctx, hostname, dns.TypeA, dnsResolver.aStats)
 	if err != nil {
 		return addrs, err
 	}
@@ -256,11 +271,13 @@ func (dnsResolver *DNSResolverImpl) LookupHost(hostname string) ([]net.IP, error
 	return addrs, nil
 }
 
-// LookupCAA sends a DNS query to find all CAA records associated with
-// the provided hostname. If the response code from the resolver is
-// SERVFAIL an empty slice of CAA records is returned.
-func (dnsResolver *DNSResolverImpl) LookupCAA(hostname string) ([]*dns.CAA, error) {
-	r, err := dnsResolver.exchangeOne(hostname, dns.TypeCAA, dnsResolver.caaStats)
+// LookupCAA sends a DNS query to find all CAA records associated with the
+// provided hostname. If the response code from the resolver is SERVFAIL an
+// empty slice of CAA records is returned.  It will retry requests the case of
+// temporary network errors. It can return net package, context.Canceled, and
+// context.DeadlineExceeded errors.
+func (dnsResolver *DNSResolverImpl) LookupCAA(ctx context.Context, hostname string) ([]*dns.CAA, error) {
+	r, err := dnsResolver.exchangeOne(ctx, hostname, dns.TypeCAA, dnsResolver.caaStats)
 	if err != nil {
 		return nil, err
 	}
@@ -282,10 +299,12 @@ func (dnsResolver *DNSResolverImpl) LookupCAA(hostname string) ([]*dns.CAA, erro
 	return CAAs, nil
 }
 
-// LookupMX sends a DNS query to find a MX record associated hostname and returns the
-// record target.
-func (dnsResolver *DNSResolverImpl) LookupMX(hostname string) ([]string, error) {
-	r, err := dnsResolver.exchangeOne(hostname, dns.TypeMX, dnsResolver.mxStats)
+// LookupMX sends a DNS query to find a MX record associated hostname and
+// returns the record target.  It will retry requests the case of temporary
+// network errors. It can return net package, context.Canceled, and
+// context.DeadlineExceeded errors.
+func (dnsResolver *DNSResolverImpl) LookupMX(ctx context.Context, hostname string) ([]string, error) {
+	r, err := dnsResolver.exchangeOne(ctx, hostname, dns.TypeMX, dnsResolver.mxStats)
 	if err != nil {
 		return nil, err
 	}
@@ -302,4 +321,52 @@ func (dnsResolver *DNSResolverImpl) LookupMX(hostname string) ([]string, error) 
 	}
 
 	return results, nil
+}
+
+func idempotentNetworkCall(ctx context.Context, stats metrics.Scope, maxTries int, clk clock.Clock, f func() error) error {
+	return retryingNetworkCall(ctx, stats, maxTries, clk, f, true)
+}
+
+// TODO(#1292): break out to a package so we can use for HTTP
+func retryingNetworkCall(ctx context.Context, stats metrics.Scope, maxTries int, clk clock.Clock, f func() error, idempotent bool) error {
+	tries := 1
+	start := clk.Now()
+	stats.Inc("Calls", 1)
+	defer stats.TimingDuration("Latency", clk.Now().Sub(start))
+
+	for {
+		stats.Inc("Tries", 1)
+		ch := make(chan error, 1)
+		go func() {
+			singleStart := clk.Now()
+			ch <- f()
+			stats.TimingDuration("SingleTryLatency", clk.Now().Sub(singleStart))
+		}()
+		select {
+		case <-ctx.Done():
+			stats.Inc("Cancels", 1)
+			stats.Inc("Errors", 1)
+			return ctx.Err()
+		case err := <-ch:
+			operr, ok := err.(*net.OpError)
+			isRetryable := ok &&
+				operr.Temporary() &&
+				(idempotent || operr.Op == "write")
+			hasRetriesLeft := tries < maxTries
+
+			if isRetryable && hasRetriesLeft {
+				tries++
+				continue
+			} else if isRetryable && !hasRetriesLeft {
+				stats.Inc("RanOutOfTries", 1)
+			}
+
+			if err != nil {
+				stats.Inc("Errors", 1)
+			} else {
+				stats.Inc("Successes", 1)
+			}
+			return err
+		}
+	}
 }
