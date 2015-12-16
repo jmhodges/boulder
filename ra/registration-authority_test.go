@@ -324,14 +324,14 @@ func TestValidateEmail(t *testing.T) {
 		"b@email.only",
 	}
 	for _, tc := range testFailures {
-		_, _, err := validateEmail(tc.input, &mocks.DNSResolver{})
+		err := validateEmail(tc.input, &mocks.DNSResolver{})
 		if err.Error() != tc.expected {
 			t.Errorf("validateEmail(%q): got %#v, expected %#v",
 				tc.input, err, tc.expected)
 		}
 	}
 	for _, addr := range testSuccesses {
-		if _, _, err := validateEmail(addr, &mocks.DNSResolver{}); err != nil {
+		if err := validateEmail(addr, &mocks.DNSResolver{}); err != nil {
 			t.Errorf("validateEmail(%q): expected success, but it failed: %s",
 				addr, err)
 		}
