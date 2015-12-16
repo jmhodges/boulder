@@ -174,12 +174,20 @@ if [[ "$RUN" =~ "vet" ]] ; then
   end_context #vet
 fi
 
+function run_golint() {
+  autogen_regexp="(mockstatsd)"
+  lintable=$(go list -f '{{ .Dir }}' ./... | egrep -v "${autogen_regexp}")
+  for dir in $lintable; do
+    golint -min_confidence=0.81 $dir
+  done
+}
+
 #
 # Run Go Lint, a style-focused static analysis tool
 #
 if [[ "$RUN" =~ "lint" ]] ; then
   start_context "lint"
-  run_and_comment golint -min_confidence=0.81 ./...
+  run_and_comment run_golint
   end_context #lint
 fi
 
