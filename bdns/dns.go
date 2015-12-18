@@ -177,37 +177,6 @@ func NewTestDNSResolverImpl(readTimeout time.Duration, servers []string, stats m
 	return resolver
 }
 
-// exchangeOne performs a single DNS exchange with a randomly chosen server
-// out of the server list, returning the response, time, and error (if any).
-// This method sets the DNSSEC OK bit on the message to true before sending
-// it to the resolver in case validation isn't the resolvers default behaviour.
-func (dnsResolver *DNSResolverImpl) exchangeOne(ctx context.Context, hostname string, qtype uint16, msgStats metrics.Scope) (*dns.Msg, error) {
-	m := new(dns.Msg)
-	// Set question type
-	m.SetQuestion(dns.Fqdn(hostname), qtype)
-	// Set DNSSEC OK bit for resolver
-	m.SetEdns0(4096, true)
-
-	if len(dnsResolver.Servers) < 1 {
-		return nil, fmt.Errorf("Not configured with at least one DNS Server")
-	}
-
-	dnsResolver.stats.Inc("Rate", 1)
-
-	// Randomly pick a server
-	chosenServer := dnsResolver.Servers[rand.Intn(len(dnsResolver.Servers))]
-
-	var rsp *dns.Msg
-	err := idempotentNetworkCall(ctx, msgStats, dnsResolver.maxTries, dnsResolver.clk, func() error {
-		var rtt time.Duration
-		var err error
-		rsp, rtt, err = dnsResolver.DNSClient.Exchange(m, chosenServer)
-		msgStats.TimingDuration("RTT", rtt)
-		return err
-	})
-	return rsp, err
-}
-
 // LookupTXT sends a DNS query to find all TXT records associated with the
 // provided hostname. It will retry requests the case of temporary network
 // errors. It can return net package, context.Canceled, and
@@ -323,50 +292,67 @@ func (dnsResolver *DNSResolverImpl) LookupMX(ctx context.Context, hostname strin
 	return results, nil
 }
 
-func idempotentNetworkCall(ctx context.Context, stats metrics.Scope, maxTries int, clk clock.Clock, f func() error) error {
-	return retryingNetworkCall(ctx, stats, maxTries, clk, f, true)
-}
+// exchangeOne performs a single DNS exchange with a randomly chosen server
+// out of the server list, returning the response, time, and error (if any).
+// This method sets the DNSSEC OK bit on the message to true before sending
+// it to the resolver in case validation isn't the resolvers default behaviour.
+func (dnsResolver *DNSResolverImpl) exchangeOne(ctx context.Context, hostname string, qtype uint16, msgStats metrics.Scope) (*dns.Msg, error) {
+	m := new(dns.Msg)
+	// Set question type
+	m.SetQuestion(dns.Fqdn(hostname), qtype)
+	// Set DNSSEC OK bit for resolver
+	m.SetEdns0(4096, true)
 
-// TODO(#1292): break out to a package so we can use for HTTP
-func retryingNetworkCall(ctx context.Context, stats metrics.Scope, maxTries int, clk clock.Clock, f func() error, idempotent bool) error {
+	if len(dnsResolver.Servers) < 1 {
+		return nil, fmt.Errorf("Not configured with at least one DNS Server")
+	}
+
+	dnsResolver.stats.Inc("Rate", 1)
+
+	// Randomly pick a server
+	chosenServer := dnsResolver.Servers[rand.Intn(len(dnsResolver.Servers))]
+
+	client := dnsResolver.DNSClient
+
 	tries := 1
-	start := clk.Now()
-	stats.Inc("Calls", 1)
-	defer stats.TimingDuration("Latency", clk.Now().Sub(start))
-
+	start := dnsResolver.clk.Now()
+	msgStats.Inc("Calls", 1)
+	defer msgStats.TimingDuration("Latency", dnsResolver.clk.Now().Sub(start))
 	for {
-		stats.Inc("Tries", 1)
-		ch := make(chan error, 1)
+		msgStats.Inc("Tries", 1)
+		ch := make(chan dnsResp, 1)
+
 		go func() {
-			singleStart := clk.Now()
-			ch <- f()
-			stats.TimingDuration("SingleTryLatency", clk.Now().Sub(singleStart))
+			rsp, rtt, err := client.Exchange(m, chosenServer)
+			msgStats.TimingDuration("SingleTryLatency", rtt)
+			ch <- dnsResp{m: rsp, err: err}
 		}()
 		select {
 		case <-ctx.Done():
-			stats.Inc("Cancels", 1)
-			stats.Inc("Errors", 1)
-			return ctx.Err()
-		case err := <-ch:
-			operr, ok := err.(*net.OpError)
-			isRetryable := ok &&
-				operr.Temporary() &&
-				(idempotent || operr.Op == "write")
-			hasRetriesLeft := tries < maxTries
-
-			if isRetryable && hasRetriesLeft {
-				tries++
-				continue
-			} else if isRetryable && !hasRetriesLeft {
-				stats.Inc("RanOutOfTries", 1)
-			}
-
-			if err != nil {
-				stats.Inc("Errors", 1)
+			msgStats.Inc("Cancels", 1)
+			msgStats.Inc("Errors", 1)
+			return nil, ctx.Err()
+		case r := <-ch:
+			if r.err != nil {
+				msgStats.Inc("Errors", 1)
+				operr, ok := r.err.(*net.OpError)
+				isRetryable := ok && operr.Temporary()
+				hasRetriesLeft := tries < dnsResolver.maxTries
+				if isRetryable && hasRetriesLeft {
+					tries++
+					continue
+				} else if isRetryable && !hasRetriesLeft {
+					msgStats.Inc("RanOutOfTries", 1)
+				}
 			} else {
-				stats.Inc("Successes", 1)
+				msgStats.Inc("Successes", 1)
 			}
-			return err
+			return r.m, r.err
 		}
 	}
+}
+
+type dnsResp struct {
+	m   *dns.Msg
+	err error
 }
