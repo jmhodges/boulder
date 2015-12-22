@@ -186,6 +186,7 @@ func (ra *RegistrationAuthorityImpl) checkRegistrationLimit(ip net.IP) error {
 			return err
 		}
 		if count >= limit.GetThreshold(ip.String(), noRegistrationID) {
+			ra.stats.Inc("RA.RateLimit.RegistrationsByIP.Violation", 1, 1.0)
 			return core.RateLimitedError("Too many registrations from this IP")
 		}
 	}
@@ -259,9 +260,10 @@ func (ra *RegistrationAuthorityImpl) validateContacts(contacts []*core.AcmeURL) 
 	return
 }
 
-func checkPendingAuthorizationLimit(sa core.StorageGetter, limit *cmd.RateLimitPolicy, regID int64) error {
+func (ra *RegistrationAuthorityImpl) checkPendingAuthorizationLimit(regID int64) error {
+	limit := ra.rlPolicies.PendingAuthorizationsPerAccount
 	if limit.Enabled() {
-		count, err := sa.CountPendingAuthorizations(regID)
+		count, err := ra.SA.CountPendingAuthorizations(regID)
 		if err != nil {
 			return err
 		}
@@ -269,6 +271,8 @@ func checkPendingAuthorizationLimit(sa core.StorageGetter, limit *cmd.RateLimitP
 		// here.
 		noKey := ""
 		if count > limit.GetThreshold(noKey, regID) {
+			ra.stats.Inc("RA.RateLimit.PendingAuthorizationsByRegID.Violation", 1, 1.0)
+			ra.log.Info(fmt.Sprintf("Rate limit violation, PendingAuthorizationsByRegID, regID: %d", regID))
 			return core.RateLimitedError("Too many currently pending authorizations.")
 		}
 	}
@@ -292,8 +296,7 @@ func (ra *RegistrationAuthorityImpl) NewAuthorization(request core.Authorization
 		return authz, err
 	}
 
-	limit := &ra.rlPolicies.PendingAuthorizationsPerAccount
-	if err = checkPendingAuthorizationLimit(ra.SA, limit, regID); err != nil {
+	if err = ra.checkPendingAuthorizationLimit(regID); err != nil {
 		return authz, err
 	}
 
@@ -608,9 +611,12 @@ func (ra *RegistrationAuthorityImpl) checkCertificatesPerNameLimit(names []strin
 		}
 	}
 	if len(badNames) > 0 {
+		domains := strings.Join(badNames, ", ")
+		ra.stats.Inc("RA.RateLimit.CertificatesForDomain.Violation", 1, 1.0)
+		ra.log.Info(fmt.Sprintf("Rate limit violation, CertificatesForDomain, regID: %d, domains: %s", regID, domains))
 		return core.RateLimitedError(fmt.Sprintf(
-			"Too many certificates already issued for: %s",
-			strings.Join(badNames, ", ")))
+			"Too many certificates already issued for: %s", domains))
+
 	}
 	return nil
 }
@@ -623,6 +629,9 @@ func (ra *RegistrationAuthorityImpl) checkLimits(names []string, regID int64) er
 			return err
 		}
 		if totalIssued >= ra.rlPolicies.TotalCertificates.Threshold {
+			domains := strings.Join(names, ",")
+			ra.stats.Inc("RA.RateLimit.TotalCertificates.Violation", 1, 1.0)
+			ra.log.Info(fmt.Sprintf("Rate limit violation, TotalCertificates, regID: %d, domains: %s, totalIssued: %d", regID, domains, totalIssued))
 			return core.RateLimitedError("Certificate issuance limit reached")
 		}
 	}
