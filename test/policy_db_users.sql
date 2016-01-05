@@ -14,18 +14,18 @@
 -- Note that dropping a non-existing user produces an error that aborts the
 -- script, so we first grant a harmless privilege to each user to ensure it
 -- exists.
-CREATE USER IF NOT EXISTS 'policy'@'localhost';
+CREATE USER IF NOT EXISTS 'policy'@'127.0.0.1';
 
-GRANT USAGE ON *.* TO 'policy'@'localhost';
-DROP USER 'policy'@'localhost';
+GRANT USAGE ON *.* TO 'policy'@'127.0.0.1';
+DROP USER 'policy'@'127.0.0.1';
 
 -- Policy loader, CA, RA
 -- Note: The same config section, "pa" is used by the policy loader (for writes)
 -- and the CA and RA (for reads). So right now we have the one user that has
 -- both read and write permission, even though it would be better to give only
 -- read permission to CA and RA.
-GRANT SELECT,INSERT,DELETE ON blacklist TO 'policy'@'localhost';
-GRANT SELECT,INSERT,DELETE ON whitelist TO 'policy'@'localhost';
+GRANT SELECT,INSERT,DELETE ON blacklist TO 'policy'@'127.0.0.1';
+GRANT SELECT,INSERT,DELETE ON whitelist TO 'policy'@'127.0.0.1';
 
 -- Test setup and teardown
-GRANT ALL PRIVILEGES ON * to 'test_setup'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'test_setup'@'127.0.0.1';
