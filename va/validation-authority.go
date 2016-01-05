@@ -472,7 +472,8 @@ func (va *ValidationAuthorityImpl) checkCAA(ctx context.Context, identifier core
 
 // Overall validation process
 
-func (va *ValidationAuthorityImpl) validate(ctx context.Context, authz core.Authorization, challengeIndex int) {
+func (va *ValidationAuthorityImpl) validate(authz core.Authorization, challengeIndex int) {
+	ctx := context.WithTimeout(va.validateTimeout, context.Background())
 	logEvent := verificationRequestEvent{
 		ID:          authz.ID,
 		Requester:   authz.RegistrationID,
@@ -507,22 +508,27 @@ func (va *ValidationAuthorityImpl) validate(ctx context.Context, authz core.Auth
 }
 
 func (va *ValidationAuthorityImpl) validateChallengeAndCAA(ctx context.Context, identifier core.AcmeIdentifier, challenge core.Challenge, regID int64) ([]core.ValidationRecord, *probs.ProblemDetails) {
-	ch := make(chan *probs.ProblemDetails, 1)
+	caaCh := make(chan *probs.ProblemDetails, 1)
 	go func() {
-		ch <- va.checkCAA(ctx, identifier, regID)
+		caaCh <- va.checkCAA(ctx, identifier, regID)
 	}()
 
-	// TODO(#1292): send into another goroutine
-	validationRecords, err := va.validateChallenge(ctx, identifier, challenge)
-	if err != nil {
-		return validationRecords, err
+	type vaResp struct {
+		recs []core.ValidationRecord
+		prob *probs.ProblemDetails
 	}
+	vaCh := make(chan vaResp, 1)
+	go func() {
+		validationRecords, prob := va.validateChallenge(ctx, identifier, challenge)
+		vaCh <- vaResp{recs: validationRecords, prob: prob}
+	}()
 
-	caaProblem := <-ch
+	caaProblem := <-caaCh
 	if caaProblem != nil {
-		return validationRecords, caaProblem
+		return nil, caaProblem
 	}
-	return validationRecords, nil
+	resp := <-vaCh
+	return resp.recs, resp.prob
 }
 
 func (va *ValidationAuthorityImpl) validateChallenge(ctx context.Context, identifier core.AcmeIdentifier, challenge core.Challenge) ([]core.ValidationRecord, *probs.ProblemDetails) {
@@ -548,8 +554,7 @@ func (va *ValidationAuthorityImpl) validateChallenge(ctx context.Context, identi
 
 // UpdateValidations runs the validate() method asynchronously using goroutines.
 func (va *ValidationAuthorityImpl) UpdateValidations(authz core.Authorization, challengeIndex int) error {
-	// TODO(#1292): add a proper deadline here
-	go va.validate(context.TODO(), authz, challengeIndex)
+	go va.validate(authz, challengeIndex)
 	return nil
 }
 
