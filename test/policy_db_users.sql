@@ -9,18 +9,23 @@
 -- utilizes its own database.
 --
 
--- Create users for each component with the appropriate permissions. We want to
--- drop each user and recreate them, but if the user doesn't already exist, the
--- drop command will fail. So we grant the dummy `USAGE` privilege to make sure
--- the user exists and then drop the user.
+-- Before setting up any privileges, we revoke existing ones to make sure we
+-- start from a clean slate.
+-- Note that dropping a non-existing user produces an error that aborts the
+-- script, so we first grant a harmless privilege to each user to ensure it
+-- exists.
+CREATE USER IF NOT EXISTS 'policy'@'localhost';
+
+GRANT USAGE ON *.* TO 'policy'@'localhost';
+DROP USER 'policy'@'localhost';
 
 -- Policy loader, CA, RA
 -- Note: The same config section, "pa" is used by the policy loader (for writes)
 -- and the CA and RA (for reads). So right now we have the one user that has
 -- both read and write permission, even though it would be better to give only
 -- read permission to CA and RA.
-GRANT SELECT,INSERT,DELETE ON blacklist TO 'policy'@'127.0.0.1';
-GRANT SELECT,INSERT,DELETE ON whitelist TO 'policy'@'127.0.0.1';
+GRANT SELECT,INSERT,DELETE ON blacklist TO 'policy'@'localhost';
+GRANT SELECT,INSERT,DELETE ON whitelist TO 'policy'@'localhost';
 
 -- Test setup and teardown
-GRANT ALL PRIVILEGES ON * to 'test_setup'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON * to 'test_setup'@'localhost';
