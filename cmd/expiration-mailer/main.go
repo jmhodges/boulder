@@ -51,7 +51,17 @@ type mailer struct {
 	clk           clock.Clock
 }
 
-func (m *mailer) sendNags(parsedCert *x509.Certificate, contacts []*core.AcmeURL) error {
+func (m *mailer) sendNags(reg *core.Registration, certs []core.Certificate) error {
+
+	for _, cert := range certs {
+		parsedCert, err := x509.ParseCertificate(cert.DER)
+		if err != nil {
+			m.log.Err(fmt.Sprintf("Error parsing certificate %s: %s", cert.Serial, err))
+			m.stats.Inc("Mailer.Expiration.Errors.ParseCertificate", 1, 1.0)
+			continue
+		}
+	}
+
 	expiresIn := int(parsedCert.NotAfter.Sub(m.clk.Now()).Hours() / 24)
 	emails := []string{}
 	for _, contact := range contacts {
@@ -118,32 +128,34 @@ func (m *mailer) updateCertStatus(serial string) error {
 	return nil
 }
 
-func (m *mailer) processCerts(certs []core.Certificate) {
+func (m *mailer) processCerts(expiresIn int, allCerts []core.Certificate) {
 	m.log.Info(fmt.Sprintf("expiration-mailer: Found %d certificates, starting sending messages", len(certs)))
-
-	for _, cert := range certs {
+	regToCerts := make(map[int64][]core.Certificate)
+	for _, cert := range allCerts {
+		cs := regToCerts[cert.RegistrationID]
+		cs = append(cs, cert)
+		regToCerts[cert.RegistrationID] = cs
+	}
+	for reg, certs := range regToCerts {
 		reg, err := m.rs.GetRegistration(cert.RegistrationID)
 		if err != nil {
 			m.log.Err(fmt.Sprintf("Error fetching registration %d: %s", cert.RegistrationID, err))
 			m.stats.Inc("Mailer.Expiration.Errors.GetRegistration", 1, 1.0)
 			continue
 		}
-		parsedCert, err := x509.ParseCertificate(cert.DER)
-		if err != nil {
-			m.log.Err(fmt.Sprintf("Error parsing certificate %s: %s", cert.Serial, err))
-			m.stats.Inc("Mailer.Expiration.Errors.ParseCertificate", 1, 1.0)
-			continue
-		}
-		err = m.sendNags(parsedCert, reg.Contact)
+
+		err = m.sendNags(reg, certs, expiresIn)
 		if err != nil {
 			m.log.Err(fmt.Sprintf("Error sending nag emails: %s", err))
 			continue
 		}
-		err = m.updateCertStatus(cert.Serial)
-		if err != nil {
-			m.log.Err(fmt.Sprintf("Error updating certificate status for %s: %s", cert.Serial, err))
-			m.stats.Inc("Mailer.Expiration.Errors.UpdateCertificateStatus", 1, 1.0)
-			continue
+		for _, cert := range certs {
+			err = m.updateCertStatus(cert.Serial)
+			if err != nil {
+				m.log.Err(fmt.Sprintf("Error updating certificate status for %s: %s", cert.Serial, err))
+				m.stats.Inc("Mailer.Expiration.Errors.UpdateCertificateStatus", 1, 1.0)
+				continue
+			}
 		}
 	}
 	m.log.Info("expiration-mailer: Finished sending messages")
@@ -186,7 +198,7 @@ func (m *mailer) findExpiringCertificates() error {
 		}
 		if len(certs) > 0 {
 			processingStarted := m.clk.Now()
-			m.processCerts(certs)
+			m.processCerts(expiresIn, certs)
 			m.stats.TimingDuration("Mailer.Expiration.ProcessingCertificatesLatency", time.Since(processingStarted), 1.0)
 		}
 	}
