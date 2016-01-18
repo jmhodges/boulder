@@ -25,9 +25,9 @@ type MailerImpl struct {
 
 // New constructs a Mailer to represent an account on a particular mail
 // transfer agent.
-func New(server, port, username, password string) MailerImpl {
+func New(server, port, username, password string) *MailerImpl {
 	auth := smtp.PlainAuth("", username, password, server)
-	return MailerImpl{
+	return &MailerImpl{
 		Server: server,
 		Port:   port,
 		Auth:   auth,

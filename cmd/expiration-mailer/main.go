@@ -6,12 +6,9 @@
 package main
 
 import (
-	"bytes"
-	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"sort"
-	"strings"
 	"text/template"
 	"time"
 
@@ -40,57 +37,14 @@ type regStore interface {
 }
 
 type mailer struct {
-	stats         statsd.Statter
-	log           *blog.AuditLogger
-	dbMap         *gorp.DbMap
-	rs            regStore
-	mailer        mail.Mailer
-	emailTemplate *template.Template
-	nagTimes      []time.Duration
-	limit         int
-	clk           clock.Clock
-}
-
-func (m *mailer) sendNags(reg *core.Registration, certs []core.Certificate) error {
-
-	for _, cert := range certs {
-		parsedCert, err := x509.ParseCertificate(cert.DER)
-		if err != nil {
-			m.log.Err(fmt.Sprintf("Error parsing certificate %s: %s", cert.Serial, err))
-			m.stats.Inc("Mailer.Expiration.Errors.ParseCertificate", 1, 1.0)
-			continue
-		}
-	}
-
-	expiresIn := int(parsedCert.NotAfter.Sub(m.clk.Now()).Hours() / 24)
-	emails := []string{}
-	for _, contact := range contacts {
-		if contact.Scheme == "mailto" {
-			emails = append(emails, contact.Opaque)
-		}
-	}
-	if len(emails) > 0 {
-		email := emailContent{
-			ExpirationDate:   parsedCert.NotAfter,
-			DaysToExpiration: expiresIn,
-			DNSNames:         strings.Join(parsedCert.DNSNames, ", "),
-		}
-		msgBuf := new(bytes.Buffer)
-		err := m.emailTemplate.Execute(msgBuf, email)
-		if err != nil {
-			m.stats.Inc("Mailer.Expiration.Errors.SendingNag.TemplateFailure", 1, 1.0)
-			return err
-		}
-		startSending := m.clk.Now()
-		err = m.mailer.SendMail(emails, msgBuf.String())
-		if err != nil {
-			m.stats.Inc("Mailer.Expiration.Errors.SendingNag.SendFailure", 1, 1.0)
-			return err
-		}
-		m.stats.TimingDuration("Mailer.Expiration.SendLatency", time.Since(startSending), 1.0)
-		m.stats.Inc("Mailer.Expiration.Sent", int64(len(emails)), 1.0)
-	}
-	return nil
+	stats     statsd.Statter
+	log       *blog.AuditLogger
+	nagMailer *nagMailer
+	dbMap     *gorp.DbMap
+	rs        regStore
+	nagTimes  []time.Duration
+	limit     int
+	clk       clock.Clock
 }
 
 func (m *mailer) updateCertStatus(serial string) error {
@@ -128,23 +82,23 @@ func (m *mailer) updateCertStatus(serial string) error {
 	return nil
 }
 
-func (m *mailer) processCerts(expiresIn int, allCerts []core.Certificate) {
-	m.log.Info(fmt.Sprintf("expiration-mailer: Found %d certificates, starting sending messages", len(certs)))
-	regToCerts := make(map[int64][]core.Certificate)
+func (m *mailer) processCerts(allCerts []core.Certificate) {
+	m.log.Info(fmt.Sprintf("expiration-mailer: Found %d certificates, starting sending messages", len(allCerts)))
+	regIDToCerts := make(map[int64][]core.Certificate)
 	for _, cert := range allCerts {
-		cs := regToCerts[cert.RegistrationID]
+		cs := regIDToCerts[cert.RegistrationID]
 		cs = append(cs, cert)
-		regToCerts[cert.RegistrationID] = cs
+		regIDToCerts[cert.RegistrationID] = cs
 	}
-	for reg, certs := range regToCerts {
-		reg, err := m.rs.GetRegistration(cert.RegistrationID)
+	for regID, certs := range regIDToCerts {
+		reg, err := m.rs.GetRegistration(regID)
 		if err != nil {
-			m.log.Err(fmt.Sprintf("Error fetching registration %d: %s", cert.RegistrationID, err))
+			m.log.Err(fmt.Sprintf("Error fetching registration %d: %s", regID, err))
 			m.stats.Inc("Mailer.Expiration.Errors.GetRegistration", 1, 1.0)
 			continue
 		}
 
-		err = m.sendNags(reg, certs, expiresIn)
+		err = m.nagMailer.sendNags(&reg, certs)
 		if err != nil {
 			m.log.Err(fmt.Sprintf("Error sending nag emails: %s", err))
 			continue
@@ -198,7 +152,7 @@ func (m *mailer) findExpiringCertificates() error {
 		}
 		if len(certs) > 0 {
 			processingStarted := m.clk.Now()
-			m.processCerts(expiresIn, certs)
+			m.processCerts(certs)
 			m.stats.TimingDuration("Mailer.Expiration.ProcessingCertificatesLatency", time.Since(processingStarted), 1.0)
 		}
 	}
@@ -280,17 +234,27 @@ func main() {
 		}
 		// Make sure durations are sorted in increasing order
 		sort.Sort(nags)
-
+		maxDomainsPerEmail = c.Mailer.MaxDomainsPerEmail
+		if maxDomainsPerEmail == 0 {
+			maxDomainsPerEmail = 10
+		}
+		nm := &nagMailer{
+			emailTemplate:      tmpl,
+			maxDomainsPerEmail: maxDomainsPerEmail,
+			stats:              stats,
+			log:                auditlogger,
+			mailer:             mailClient,
+			clk:                clock.Default(),
+		}
 		m := mailer{
-			stats:         stats,
-			log:           auditlogger,
-			dbMap:         dbMap,
-			rs:            sac,
-			mailer:        &mailClient,
-			emailTemplate: tmpl,
-			nagTimes:      nags,
-			limit:         c.Mailer.CertLimit,
-			clk:           clock.Default(),
+			stats:     stats,
+			log:       auditlogger,
+			dbMap:     dbMap,
+			rs:        sac,
+			nagMailer: nm,
+			nagTimes:  nags,
+			limit:     c.Mailer.CertLimit,
+			clk:       clock.Default(),
 		}
 
 		auditlogger.Info("expiration-mailer: Starting")
