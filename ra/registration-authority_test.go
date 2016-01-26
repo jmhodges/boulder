@@ -395,6 +395,7 @@ func TestNewRegistrationNoFieldOverwrite(t *testing.T) {
 
 	result, err := ra.NewRegistration(input)
 	test.AssertNotError(t, err, "Could not create new registration")
+	t.Logf("for real is result.ID %d", result.ID)
 
 	test.Assert(t, result.ID != 23, "ID shouldn't be set by user")
 	// TODO: Enable this test case once we validate terms agreement.
