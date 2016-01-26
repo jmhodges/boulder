@@ -139,8 +139,8 @@ def forward():
 def bounce_forward():
     """Kill all forwarded TCP connections."""
     global processes
-    processes[0].send_signal(signal.SIGUSR1)
-    processes[1].send_signal(signal.SIGKILL)
+    processes[0].send_signal(signal.SIGKILL)
+    processes[1].send_signal(signal.SIGUSR1)
 
 def check():
     """Return true if all started processes are still alive.
