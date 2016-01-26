@@ -148,7 +148,7 @@
   },
 
   "pa": {
-    "dbConnect": "mysql+tcp://policy@localhost:3306/boulder_policy_integration",
+    "dbConnect": "mysql+tcp://policy@localhost:3307/boulder_policy_integration",
     "challenges": {
       "http-01": true,
       "tls-sni-01": true,
@@ -236,7 +236,7 @@
   },
 
   "ocspResponder": {
-    "source": "mysql+tcp://ocsp_resp@localhost:3306/boulder_sa_integration",
+    "source": "mysql+tcp://ocsp_resp@localhost:3307/boulder_sa_integration",
     "path": "/",
     "listenAddress": "localhost:4002",
     "maxAge": "10s",

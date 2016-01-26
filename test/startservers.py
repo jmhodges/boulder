@@ -129,11 +129,18 @@ def forward():
     print('started %s with pid %d' % (p.cmd, p.pid))
     global processes
     processes.insert(0, p)
+    cmd = """exec listenbuddy -listen :3307 -speak localhost:3306"""
+    p = subprocess.Popen(cmd, shell=True)
+    p.cmd = cmd
+    print('started %s with pid %d' % (p.cmd, p.pid))
+    global processes
+    processes.insert(0, p)
 
 def bounce_forward():
     """Kill all forwarded TCP connections."""
     global processes
     processes[0].send_signal(signal.SIGUSR1)
+    processes[1].send_signal(signal.SIGUSR1)
 
 def check():
     """Return true if all started processes are still alive.
