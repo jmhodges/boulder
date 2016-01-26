@@ -401,12 +401,13 @@ func TestNewRegistrationNoFieldOverwrite(t *testing.T) {
 	//test.Assert(t, result.Agreement != "I agreed", "Agreement shouldn't be set with invalid URL")
 
 	id := result.ID
+	t.Logf("wtf is result.ID %d; id %d", result.ID, id)
 	result2, err := ra.UpdateRegistration(result, core.Registration{
 		ID:  33,
 		Key: ShortKey,
 	})
 	test.AssertNotError(t, err, "Could not update registration")
-	test.Assert(t, result2.ID != 33, fmt.Sprintf("ID shouldn't be overwritten. expected %d, got %d", id, result2.ID))
+	test.Assert(t, result2.ID != 33, fmt.Sprintf("ID shouldn't be overwritten. expected not %d, got %d", id, result2.ID))
 	test.Assert(t, !core.KeyDigestEquals(result2.Key, ShortKey), "Key shouldn't be overwritten")
 }
 
