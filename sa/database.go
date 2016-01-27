@@ -38,8 +38,6 @@ func NewDbMap(dbConnect string) (*gorp.DbMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxIdleConns(0)
-	db.SetMaxOpenConns(500)
 	if err = db.Ping(); err != nil {
 		return nil, err
 	}
