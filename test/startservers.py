@@ -140,6 +140,14 @@ def bounce_forward():
     """Kill all forwarded TCP connections."""
     global processes
     processes[0].send_signal(signal.SIGKILL)
+    time.sleep(5)
+    cmd = """exec listenbuddy -listen :3307 -speak localhost:3306"""
+    p = subprocess.Popen(cmd, shell=True)
+    p.cmd = cmd
+    print('started %s with pid %d' % (p.cmd, p.pid))
+    global processes
+    processes.insert(0, p)
+
     processes[1].send_signal(signal.SIGUSR1)
 
 def check():
