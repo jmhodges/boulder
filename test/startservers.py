@@ -146,7 +146,7 @@ def bounce_forward():
     p.cmd = cmd
     print('started %s with pid %d' % (p.cmd, p.pid))
     global processes
-    processes.insert(0, p)
+    processes[0] = p
 
     processes[1].send_signal(signal.SIGUSR1)
 
