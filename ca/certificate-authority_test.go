@@ -471,6 +471,7 @@ func TestCapitalizedLetters(t *testing.T) {
 	sort.Strings(parsedCert.DNSNames)
 	expected := []string{"capitalizedletters.com", "evenmorecaps.com", "morecaps.com"}
 	test.AssertDeepEquals(t, expected, parsedCert.DNSNames)
+	t.Logf("subject serial number %#v", parsedCert.Subject.SerialNumber)
 }
 
 func TestWrongSignature(t *testing.T) {
