@@ -56,14 +56,9 @@ func main() {
 
 	req := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName: "CapiTalizedLetters.com",
+			CommonName: "",
 		},
-		DNSNames: []string{
-			"moreCAPs.com",
-			"morecaps.com",
-			"evenMOREcaps.com",
-			"Capitalizedletters.COM",
-		},
+		DNSNames: []string{},
 	}
 	csr, err := x509.CreateCertificateRequest(rand.Reader, req, rsaPriv)
 	if err != nil {
