@@ -411,8 +411,7 @@ func TestDeduplication(t *testing.T) {
 
 	correctName := "a.not-example.com"
 	correctNames := len(parsedCert.DNSNames) == 1 &&
-		parsedCert.DNSNames[0] == correctName &&
-		parsedCert.Subject.CommonName == correctName
+		parsedCert.DNSNames[0] == correctName
 	test.Assert(t, correctNames, "Incorrect set of names in deduplicated certificate")
 }
 
