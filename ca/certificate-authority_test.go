@@ -267,6 +267,37 @@ func TestFailNoSerial(t *testing.T) {
 	test.AssertError(t, err, "CA should have failed with no SerialPrefix")
 }
 
+func TestAllowNoCN(t *testing.T) {
+	ctx := setup(t)
+	defer ctx.cleanUp()
+	ca, err := NewCertificateAuthorityImpl(ctx.caConfig, ctx.fc, ctx.stats, caCert, caKey, ctx.keyPolicy)
+	test.AssertNotError(t, err, "Couldn't create new CA")
+	ca.Publisher = &mocks.Publisher{}
+	ca.PA = ctx.pa
+	ca.SA = ctx.sa
+
+	csr, err := x509.ParseCertificateRequest(NoCNCSR)
+	test.AssertNotError(t, err, "Couldn't parse CSR")
+	issuedCert, err := ca.IssueCertificate(*csr, ctx.reg.ID)
+	test.AssertNotError(t, err, "Failed to sign certificate")
+	cert, err := x509.ParseCertificate(issuedCert.DER)
+	test.AssertNotError(t, err, fmt.Sprintf("unable to parse no CN cert: ", err))
+	if cert.Subject.CommonName != "" {
+		t.Errorf("want no CommonName, got %#v", cert.Subject.CommonName)
+	}
+	expected := []string{}
+	for _, name := range csr.DNSNames {
+		expected = append(expected, name)
+	}
+	sort.Strings(expected)
+	actual := []string{}
+	for _, name := range cert.DNSNames {
+		actual = append(actual, name)
+	}
+	sort.Strings(actual)
+	test.AssertDeepEquals(t, actual, expected)
+}
+
 func TestIssueCertificate(t *testing.T) {
 	ctx := setup(t)
 	defer ctx.cleanUp()
@@ -285,7 +316,7 @@ func TestIssueCertificate(t *testing.T) {
 			}
 	*/
 
-	csrs := [][]byte{CNandSANCSR, NoSANCSR, NoCNCSR}
+	csrs := [][]byte{CNandSANCSR, NoSANCSR}
 	for _, csrDER := range csrs {
 		csr, _ := x509.ParseCertificateRequest(csrDER)
 
@@ -342,23 +373,6 @@ func TestIssueCertificate(t *testing.T) {
 		test.Assert(t, certStatus.Status == core.OCSPStatusGood, "Certificate status was not good")
 		test.Assert(t, certStatus.SubscriberApproved == false, "Subscriber shouldn't have approved cert yet.")
 	}
-}
-
-func TestRejectNoName(t *testing.T) {
-	ctx := setup(t)
-	defer ctx.cleanUp()
-	ca, err := NewCertificateAuthorityImpl(ctx.caConfig, ctx.fc, ctx.stats, caCert, caKey, ctx.keyPolicy)
-	test.AssertNotError(t, err, "Failed to create CA")
-	ca.Publisher = &mocks.Publisher{}
-	ca.PA = ctx.pa
-	ca.SA = ctx.sa
-
-	// Test that the CA rejects CSRs with no names
-	csr, _ := x509.ParseCertificateRequest(NoNameCSR)
-	_, err = ca.IssueCertificate(*csr, ctx.reg.ID)
-	test.AssertError(t, err, "CA improperly agreed to create a certificate with no name")
-	_, ok := err.(core.MalformedRequestError)
-	test.Assert(t, ok, "Incorrect error type returned")
 }
 
 func TestRejectTooManyNames(t *testing.T) {
