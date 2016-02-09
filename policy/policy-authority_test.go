@@ -40,7 +40,7 @@ func paImpl(t *testing.T) (*PolicyAuthorityImpl, func()) {
 func paDBMap(t *testing.T) (*gorp.DbMap, func()) {
 	dbMap, err := sa.NewDbMap(vars.DBConnPolicy)
 	test.AssertNotError(t, err, "Could not construct dbMap")
-	cleanUp := test.ResetPolicyTestDatabase(t)
+	cleanUp := test.ResetTestDatabase(t, dbMap.Db)
 	return dbMap, cleanUp
 }
 

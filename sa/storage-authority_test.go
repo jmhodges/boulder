@@ -50,7 +50,7 @@ func initSA(t *testing.T) (*SQLStorageAuthority, clock.FakeClock, func()) {
 		t.Fatalf("Failed to create SA: %s", err)
 	}
 
-	cleanUp := test.ResetSATestDatabase(t)
+	cleanUp := test.ResetTestDatabase(t, dbMap.Db)
 	return sa, fc, cleanUp
 }
 
@@ -211,6 +211,7 @@ func CreateDomainAuthWithRegID(t *testing.T, domainName string, sa *SQLStorageAu
 	// create pending auth
 	authz, err := sa.NewPendingAuthorization(core.Authorization{RegistrationID: regID, Challenges: []core.Challenge{core.Challenge{}}})
 	if err != nil {
+		t.Logf("regID: %d", regID)
 		t.Fatalf("Couldn't create new pending authorization: %s", err)
 	}
 	test.Assert(t, authz.ID != "", "ID shouldn't be blank")
@@ -231,7 +232,6 @@ func CreateDomainAuthWithRegID(t *testing.T, domainName string, sa *SQLStorageAu
 	// save updated auth
 	err = sa.UpdatePendingAuthorization(authz)
 	test.AssertNotError(t, err, "Couldn't update pending authorization with ID "+authz.ID)
-
 	return
 }
 
@@ -470,7 +470,6 @@ func TestAddSCTReceipt(t *testing.T) {
 	// Append only and unique on signature and across LogID and CertificateSerial
 	err = sa.AddSCTReceipt(sct)
 	test.AssertError(t, err, "Incorrectly added duplicate SCT receipt")
-	fmt.Println(err)
 }
 
 func TestGetSCTReceipt(t *testing.T) {

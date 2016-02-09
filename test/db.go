@@ -30,27 +30,23 @@ type CleanUpDB interface {
 // configuration only like goose_db_version (for migrations) or
 // the ones describing the internal configuration of the server. To be
 // used only in test code.
-func ResetSATestDatabase(t *testing.T) func() {
-	return resetTestDatabase(t, "sa")
-}
+// func ResetSATestDatabase(t *testing.T) func() {
+// 	return resetTestDatabase(t, "sa")
+// }
 
-// ResetPolicyTestDatabase deletes all rows in all tables in the Policy DB. It
-// acts the same as ResetSATestDatabase.
-func ResetPolicyTestDatabase(t *testing.T) func() {
-	return resetTestDatabase(t, "policy")
-}
+// // ResetPolicyTestDatabase deletes all rows in all tables in the Policy DB. It
+// // acts the same as ResetSATestDatabase.
+// func ResetPolicyTestDatabase(t *testing.T) func() {
+// 	return resetTestDatabase(t, "policy")
+// }
 
-func resetTestDatabase(t *testing.T, dbType string) func() {
-	db, err := sql.Open("mysql", fmt.Sprintf("test_setup@tcp(localhost:3306)/boulder_%s_test", dbType))
-	if err != nil {
-		t.Fatalf("Couldn't create db: %s", err)
-	}
-	fmt.Printf("db %#v\n", db)
+func ResetTestDatabase(t *testing.T, db *sql.DB) func() {
 	if err := deleteEverythingInAllTables(db); err != nil {
 		t.Fatalf("Failed to delete everything: %s", err)
 	}
 	return func() {
 		if err := deleteEverythingInAllTables(db); err != nil {
+			db.Close()
 			t.Fatalf("Failed to truncate tables after the test: %s", err)
 		}
 		db.Close()
@@ -66,35 +62,38 @@ func deleteEverythingInAllTables(db CleanUpDB) error {
 	if err != nil {
 		return err
 	}
+
+	ts, err = reorderTablesByForeignRefConstraints(db, ts)
+	if err != nil {
+		return err
+	}
+	// _, err = db.Exec("lock tables `" + tn + "` write")
+	// if err != nil {
+	// 	return err // FIXME
+	// }
+	// _, err = db.Exec("unlock tables")
+	// if err != nil {
+	// 	return err // FIXME
+	// }
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err // FIXME
+	}
+
 	for _, tn := range ts {
-		// We do this in a transaction to make sure that the foreign
-		// key checks remain disabled even if the db object chooses
-		// another connection to make the deletion on. Note that
-		// `alter table` statements will silently cause transactions
-		// to commit, so we do them outside of the transaction.
-		tx, err := db.Begin()
-		if err != nil {
-			return fmt.Errorf("unable to start transaction to delete all rows from table %#v: %s", tn, err)
-		}
-		_, err = tx.Exec("set FOREIGN_KEY_CHECKS = 0")
-		if err != nil {
-			return fmt.Errorf("unable to disable FOREIGN_KEY_CHECKS to delete all rows from table %#v: %s", tn, err)
-		}
+		fmt.Println("deleting", tn)
 		// 1 = 1 here prevents the MariaDB i_am_a_dummy setting from
 		// rejecting the DELETE for not having a WHERE clause.
-
 		_, err = tx.Exec("delete from `" + tn + "` where 1 = 1")
 		if err != nil {
 			return fmt.Errorf("unable to delete all rows from table %#v: %s", tn, err)
 		}
-		_, err = tx.Exec("set FOREIGN_KEY_CHECKS = 1")
-		if err != nil {
-			return fmt.Errorf("unable to re-enable FOREIGN_KEY_CHECKS to delete all rows from table %#v: %s", tn, err)
-		}
-		err = tx.Commit()
-		if err != nil {
-			return fmt.Errorf("unable to commit transaction to delete all rows from table %#v: %s", tn, err)
-		}
+
+	}
+	err = tx.Commit()
+	if err != nil {
+		return err // FIXME
 	}
 	return err
 }
@@ -120,4 +119,55 @@ func allTableNamesInDB(db CleanUpDB) ([]string, error) {
 		ts = append(ts, tableName)
 	}
 	return ts, r.Err()
+}
+
+func reorderTablesByForeignRefConstraints(db CleanUpDB, ts []string) ([]string, error) {
+	// Find all the foreign key references so that we clear out the
+	// table_name before the referenced_table_name (which will throw
+	// an error). This code assumes there are no tables that have a
+	// constraint on a second table that has a constraint on
+	// a third table (which may be the first table).
+	r, err := db.Query("select table_name, referenced_table_name from INFORMATION_SCHEMA.KEY_COLUMN_USAGE where referenced_table_name is not null and constraint_schema = DATABASE()")
+	if err != nil {
+		return nil, fmt.Errorf("unable to gather foreign key constraints to make deletion possible: %s", err)
+	}
+	forRefs := make(map[string][]string)
+	for r.Next() {
+		tableName := ""
+		refTableName := ""
+		err = r.Scan(&tableName, &refTableName)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("tableName:", tableName, "refTableName:", refTableName)
+		refs := forRefs[refTableName]
+		refs = append(refs, tableName)
+		forRefs[refTableName] = refs
+	}
+	if r.Err() != nil {
+		return nil, fmt.Errorf("unable to finish gathering foreign key constraints: %s", r.Err())
+	}
+	seen := make(map[string]bool)
+	newTS := []string{}
+	fmt.Println(forRefs)
+
+	for _, tn := range ts {
+		if seen[tn] {
+			continue
+		}
+		refs := forRefs[tn]
+		for _, ref := range refs {
+			if seen[ref] {
+				continue
+			}
+			fmt.Println("adding ref", ref)
+			newTS = append(newTS, ref)
+			seen[ref] = true
+		}
+		fmt.Println("adding tn", tn)
+		newTS = append(newTS, tn)
+		seen[tn] = true
+	}
+	fmt.Println("wtf", newTS)
+	return newTS, nil
 }

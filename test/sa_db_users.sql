@@ -15,43 +15,51 @@
 -- the user exists and then drop the user.
 
 -- Storage Authority
-GRANT SELECT,INSERT,UPDATE ON authz TO 'sa'@'localhost';
-GRANT SELECT,INSERT,UPDATE,DELETE ON pendingAuthorizations TO 'sa'@'localhost';
-GRANT SELECT(id,Lockcol) ON pendingAuthorizations TO 'sa'@'localhost';
-GRANT SELECT,INSERT ON certificates TO 'sa'@'localhost';
-GRANT SELECT,INSERT,UPDATE ON certificateStatus TO 'sa'@'localhost';
-GRANT SELECT,INSERT ON issuedNames TO 'sa'@'localhost';
-GRANT SELECT,INSERT ON sctReceipts TO 'sa'@'localhost';
-GRANT SELECT,INSERT ON deniedCSRs TO 'sa'@'localhost';
-GRANT INSERT ON ocspResponses TO 'sa'@'localhost';
-GRANT SELECT,INSERT,UPDATE ON registrations TO 'sa'@'localhost';
-GRANT SELECT,INSERT,UPDATE ON challenges TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE ON authz TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE,DELETE ON pendingAuthorizations TO 'sa'@'localhost';
+GRANT DELETE,SELECT(id,Lockcol) ON pendingAuthorizations TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT ON certificates TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE ON certificateStatus TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT ON issuedNames TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT ON sctReceipts TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT ON deniedCSRs TO 'sa'@'localhost';
+GRANT DELETE,INSERT ON ocspResponses TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE ON registrations TO 'sa'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE ON challenges TO 'sa'@'localhost';
 
 -- OCSP Responder
-GRANT SELECT ON certificateStatus TO 'ocsp_resp'@'localhost';
-GRANT SELECT ON ocspResponses TO 'ocsp_resp'@'localhost';
+GRANT DELETE,SELECT ON certificateStatus TO 'ocsp_resp'@'localhost';
+GRANT DELETE,SELECT ON ocspResponses TO 'ocsp_resp'@'localhost';
 
 -- OCSP Generator Tool (Updater)
-GRANT INSERT ON ocspResponses TO 'ocsp_update'@'localhost';
-GRANT SELECT ON certificates TO 'ocsp_update'@'localhost';
-GRANT SELECT,UPDATE ON certificateStatus TO 'ocsp_update'@'localhost';
-GRANT SELECT ON sctReceipts TO 'ocsp_update'@'localhost';
+GRANT DELETE,INSERT ON ocspResponses TO 'ocsp_update'@'localhost';
+GRANT DELETE,SELECT ON certificates TO 'ocsp_update'@'localhost';
+GRANT DELETE,SELECT,UPDATE ON certificateStatus TO 'ocsp_update'@'localhost';
+GRANT DELETE,SELECT ON sctReceipts TO 'ocsp_update'@'localhost';
 
 -- Revoker Tool
-GRANT SELECT ON registrations TO 'revoker'@'localhost';
-GRANT SELECT ON certificates TO 'revoker'@'localhost';
-GRANT SELECT,INSERT ON deniedCSRs TO 'revoker'@'localhost';
+GRANT DELETE,SELECT ON registrations TO 'revoker'@'localhost';
+GRANT DELETE,SELECT ON certificates TO 'revoker'@'localhost';
+GRANT DELETE,SELECT,INSERT ON deniedCSRs TO 'revoker'@'localhost';
 
 -- External Cert Importer
-GRANT SELECT,INSERT,UPDATE,DELETE ON identifierData TO 'importer'@'localhost';
-GRANT SELECT,INSERT,UPDATE,DELETE ON externalCerts TO 'importer'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE,DELETE ON identifierData TO 'importer'@'localhost';
+GRANT DELETE,SELECT,INSERT,UPDATE,DELETE ON externalCerts TO 'importer'@'localhost';
 
 -- Expiration mailer
-GRANT SELECT ON certificates TO 'mailer'@'localhost';
-GRANT SELECT,UPDATE ON certificateStatus TO 'mailer'@'localhost';
+GRANT DELETE,SELECT ON certificates TO 'mailer'@'localhost';
+GRANT DELETE,SELECT,UPDATE ON certificateStatus TO 'mailer'@'localhost';
 
 -- Cert checker
-GRANT SELECT ON certificates TO 'cert_checker'@'localhost';
+GRANT DELETE,SELECT ON certificates TO 'cert_checker'@'localhost';
 
 -- Test setup and teardown
 GRANT ALL PRIVILEGES ON * to 'test_setup'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'sa'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'ocsp_resp'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'ocsp_update'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'revoker'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'importer'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'mailer'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'cert_checker'@'localhost';
+

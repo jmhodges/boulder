@@ -66,7 +66,7 @@ func TestDBHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("makeDBSource: %s", err)
 	}
-	defer test.ResetSATestDatabase(t)
+	defer test.ResetTestDatabase(t, dbMap.Db)
 
 	ocspResp, err := ocsp.ParseResponse(resp, nil)
 	if err != nil {

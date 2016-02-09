@@ -24,3 +24,4 @@ GRANT SELECT,INSERT,DELETE ON whitelist TO 'policy'@'localhost';
 
 -- Test setup and teardown
 GRANT ALL PRIVILEGES ON * to 'test_setup'@'localhost';
+GRANT ALL PRIVILEGES ON * to 'policy'@'localhost';

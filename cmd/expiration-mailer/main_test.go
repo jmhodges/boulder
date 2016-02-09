@@ -555,7 +555,7 @@ func setup(t *testing.T, nagTimes []time.Duration) *testCtx {
 	if err != nil {
 		t.Fatalf("unable to create SQLStorageAuthority: %s", err)
 	}
-	cleanUp := test.ResetSATestDatabase(t)
+	cleanUp := test.ResetTestDatabase(t, dbMap.Db)
 
 	stats, _ := statsd.NewNoopClient(nil)
 	mc := &mocks.Mailer{}

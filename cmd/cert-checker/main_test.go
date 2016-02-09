@@ -76,10 +76,10 @@ func BenchmarkCheckCert(b *testing.B) {
 func TestCheckCert(t *testing.T) {
 	saDbMap, err := sa.NewDbMap(vars.DBConnSA)
 	test.AssertNotError(t, err, "Couldn't connect to database")
-	saCleanup := test.ResetSATestDatabase(t)
+	saCleanup := test.ResetTestDatabase(t, saDbMap.Db)
 	paDbMap, err := sa.NewDbMap(vars.DBConnPolicy)
 	test.AssertNotError(t, err, "Couldn't connect to policy database")
-	paCleanup := test.ResetPolicyTestDatabase(t)
+	paCleanup := test.ResetTestDatabase(t, paDbMap.Db)
 	defer func() {
 		saCleanup()
 		paCleanup()
@@ -184,8 +184,8 @@ func TestGetAndProcessCerts(t *testing.T) {
 	checker := newChecker(saDbMap, paDbMap, fc, false, nil)
 	sa, err := sa.NewSQLStorageAuthority(saDbMap, fc)
 	test.AssertNotError(t, err, "Couldn't create SA to insert certificates")
-	saCleanUp := test.ResetSATestDatabase(t)
-	paCleanUp := test.ResetPolicyTestDatabase(t)
+	saCleanUp := test.ResetTestDatabase(t, saDbMap.Db)
+	paCleanUp := test.ResetTestDatabase(t, paDbMap.Db)
 	defer func() {
 		saCleanUp()
 		paCleanUp()

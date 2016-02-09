@@ -178,7 +178,7 @@ func initAuthorities(t *testing.T) (*DummyValidationAuthority, *sa.SQLStorageAut
 		t.Fatalf("Failed to create SA: %s", err)
 	}
 
-	saDBCleanUp := test.ResetSATestDatabase(t)
+	saDBCleanUp := test.ResetTestDatabase(t, dbMap.Db)
 
 	va := &DummyValidationAuthority{}
 
@@ -213,7 +213,7 @@ func initAuthorities(t *testing.T) (*DummyValidationAuthority, *sa.SQLStorageAut
 	if err != nil {
 		t.Fatalf("Failed to create dbMap: %s", err)
 	}
-	policyDBCleanUp := test.ResetPolicyTestDatabase(t)
+	policyDBCleanUp := test.ResetTestDatabase(t, paDbMap.Db)
 	pa, err := policy.NewPolicyAuthorityImpl(paDbMap, false, SupportedChallenges)
 	test.AssertNotError(t, err, "Couldn't create PA")
 

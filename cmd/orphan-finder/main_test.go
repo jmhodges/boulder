@@ -28,7 +28,7 @@ func TestParseLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create SA: %s", err)
 	}
-	defer test.ResetSATestDatabase(t)()
+	defer test.ResetTestDatabase(t, dbMap.Db)()
 	logger := blog.GetAuditLogger()
 
 	found, added := parseLogLine(sa, logger, "")

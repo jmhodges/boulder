@@ -56,7 +56,7 @@ func setup(t *testing.T) (*OCSPUpdater, core.StorageAuthority, *gorp.DbMap, cloc
 	sa, err := sa.NewSQLStorageAuthority(dbMap, fc)
 	test.AssertNotError(t, err, "Failed to create SA")
 
-	cleanUp := test.ResetSATestDatabase(t)
+	cleanUp := test.ResetTestDatabase(t, dbMap.Db)
 
 	stats, _ := statsd.NewNoopClient(nil)
 
